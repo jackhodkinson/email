@@ -18,7 +18,7 @@ Building a view-only Gmail client MVP. Users can connect Gmail accounts, browse 
 ### Milestone 1: "See My Inbox" (Foundation)
 
 **Goal**: Auth with Gmail → see your actual inbox in the browser
-**Status**: 🔴 Not Started
+**Status**: 🟢 Complete
 
 | # | Task | Status | Dependencies | Notes |
 |---|------|--------|--------------|-------|
