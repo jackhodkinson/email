@@ -12,6 +12,15 @@ const config = defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  ssr: {
+    external: ['bun', 'bun:sql'],
+    noExternal: true,
+  },
+  build: {
+    rollupOptions: {
+      external: ['bun', 'bun:sql'],
+    },
+  },
   plugins: [
     devtools(),
     tailwindcss(),

@@ -40,14 +40,14 @@ Building a view-only Gmail client MVP. Users can connect Gmail accounts, browse 
 ### Milestone 2: "Read an Email"
 
 **Goal**: Click any email, read it fully, navigate back
-**Status**: 🔴 Not Started (Blocked by M1)
+**Status**: 🟢 Complete
 
 | # | Task | Status | Dependencies | Notes |
 |---|------|--------|--------------|-------|
-| 2.1 | [Email Detail Route](tasks/milestone-2/2.1-email-detail-route.md) | 🔴 | M1 complete | |
-| 2.2 | [Safe HTML Rendering](tasks/milestone-2/2.2-html-rendering.md) | 🔴 | 2.1 | Security critical |
-| 2.3 | [Attachments Display](tasks/milestone-2/2.3-attachments.md) | 🔴 | 2.1 | |
-| 2.4 | [Navigation Flow](tasks/milestone-2/2.4-navigation.md) | 🔴 | 2.1, 2.2 | |
+| 2.1 | [Email Detail Route](tasks/milestone-2/2.1-email-detail-route.md) | 🟢 | M1 complete | Complete |
+| 2.2 | [Safe HTML Rendering](tasks/milestone-2/2.2-html-rendering.md) | 🟢 | 2.1 | Complete |
+| 2.3 | [Attachments Display](tasks/milestone-2/2.3-attachments.md) | 🟢 | 2.1 | Complete |
+| 2.4 | [Navigation Flow](tasks/milestone-2/2.4-navigation.md) | 🟢 | 2.1, 2.2 | Complete |
 
 ---
 

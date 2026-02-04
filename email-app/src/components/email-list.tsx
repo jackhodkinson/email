@@ -14,10 +14,9 @@ interface Email {
 interface EmailListProps {
   emails: Email[];
   selectedId?: string;
-  onSelect?: (id: string) => void;
 }
 
-export function EmailList({ emails, selectedId, onSelect }: EmailListProps) {
+export function EmailList({ emails, selectedId }: EmailListProps) {
   if (emails.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -34,7 +33,6 @@ export function EmailList({ emails, selectedId, onSelect }: EmailListProps) {
             key={email.id}
             email={email}
             isSelected={email.id === selectedId}
-            onClick={() => onSelect?.(email.id)}
           />
         ))}
       </div>

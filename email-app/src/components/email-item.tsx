@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 interface EmailItemProps {
@@ -11,18 +12,18 @@ interface EmailItemProps {
     hasAttachments: boolean;
   };
   isSelected?: boolean;
-  onClick?: () => void;
 }
 
-export function EmailItem({ email, isSelected, onClick }: EmailItemProps) {
+export function EmailItem({ email, isSelected }: EmailItemProps) {
   return (
-    <div
+    <Link
+      to="/email/$id"
+      params={{ id: email.id }}
       className={cn(
-        "relative px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
+        "block relative px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
         isSelected && "bg-muted",
         !email.isRead && "bg-blue-50 dark:bg-blue-950/20"
       )}
-      onClick={onClick}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -62,7 +63,7 @@ export function EmailItem({ email, isSelected, onClick }: EmailItemProps) {
       {!email.isRead && (
         <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500" />
       )}
-    </div>
+    </Link>
   );
 }
 
