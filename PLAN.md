@@ -26,7 +26,7 @@ Building a view-only Gmail client MVP. Users can connect Gmail accounts, browse 
 | 1.2 | [Google Cloud Setup](tasks/milestone-1/1.2-google-cloud-setup.md) | 🟢 | None | Using existing ~/.config/gmail-skill/ |
 | 1.3 | [OAuth Flow](tasks/milestone-1/1.3-oauth-flow.md) | 🟢 | 1.1, 1.2 | Complete |
 | 1.4 | [Gmail API Client](tasks/milestone-1/1.4-gmail-client.md) | 🟢 | 1.2 | Complete |
-| 1.5 | [Email Parser](tasks/milestone-1/1.5-email-parser.md) | 🔴 | None | Can start immediately |
+| 1.5 | [Email Parser](tasks/milestone-1/1.5-email-parser.md) | 🟢 | None | Complete |
 | 1.6 | [Initial Sync](tasks/milestone-1/1.6-initial-sync.md) | 🔴 | 1.1, 1.3, 1.4, 1.5 | |
 | 1.7 | [Inbox UI](tasks/milestone-1/1.7-inbox-ui.md) | 🔴 | 1.6 | |
 
