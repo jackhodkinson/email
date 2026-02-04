@@ -19,9 +19,9 @@ interface EmailViewProps {
 
 export function EmailView({ email }: EmailViewProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header with back button */}
-      <div className="flex items-center gap-4 px-4 py-3 border-b">
+      <div className="flex items-center gap-4 px-4 py-3 border-b flex-shrink-0">
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -44,7 +44,7 @@ export function EmailView({ email }: EmailViewProps) {
       </div>
 
       {/* Email metadata */}
-      <div className="px-6 py-4 space-y-2">
+      <div className="px-6 py-4 space-y-2 flex-shrink-0">
         <h1 className="text-xl font-semibold">
           {email.subject || "(no subject)"}
         </h1>
@@ -91,7 +91,7 @@ export function EmailView({ email }: EmailViewProps) {
       <Separator />
 
       {/* Email body */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
         <EmailContent bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
       </div>
     </div>

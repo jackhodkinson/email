@@ -5,6 +5,7 @@
   background-color: #fff;
   color: #000;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .nav {

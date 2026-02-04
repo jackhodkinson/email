@@ -37,15 +37,15 @@ function EmailDetailPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b px-4 py-3 flex items-center justify-between">
+    <div className="h-full flex flex-col overflow-hidden">
+      <header className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
         <h1 className="text-lg font-semibold">Inbox</h1>
         <span className="text-sm text-muted-foreground">
           {emails.length} emails
         </span>
       </header>
 
-      <main className="h-[calc(100vh-57px)]">
+      <main className="flex-1 min-h-0 overflow-hidden">
         <EmailSplitView
           emails={emails}
           selectedEmailId={email?.id ?? null}
@@ -59,7 +59,7 @@ function EmailDetailPage() {
 
 function NotFound() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+    <div className="flex flex-col items-center justify-center h-full gap-4">
       <h1 className="text-2xl font-semibold">Email not found</h1>
       <p className="text-muted-foreground">
         The email you're looking for doesn't exist or has been deleted.
