@@ -8,7 +8,7 @@ Building a view-only Gmail client MVP. Users can connect Gmail accounts, browse 
 
 ## Current Status
 
-**Active Milestone**: 1 - Foundation
+**Active Milestone**: 1 - Foundation ✅ COMPLETE
 **Last Updated**: 2025-02-04
 
 ---
@@ -27,8 +27,8 @@ Building a view-only Gmail client MVP. Users can connect Gmail accounts, browse 
 | 1.3 | [OAuth Flow](tasks/milestone-1/1.3-oauth-flow.md) | 🟢 | 1.1, 1.2 | Complete |
 | 1.4 | [Gmail API Client](tasks/milestone-1/1.4-gmail-client.md) | 🟢 | 1.2 | Complete |
 | 1.5 | [Email Parser](tasks/milestone-1/1.5-email-parser.md) | 🟢 | None | Complete |
-| 1.6 | [Initial Sync](tasks/milestone-1/1.6-initial-sync.md) | 🔴 | 1.1, 1.3, 1.4, 1.5 | |
-| 1.7 | [Inbox UI](tasks/milestone-1/1.7-inbox-ui.md) | 🔴 | 1.6 | |
+| 1.6 | [Initial Sync](tasks/milestone-1/1.6-initial-sync.md) | 🟢 | 1.1, 1.3, 1.4, 1.5 | Complete |
+| 1.7 | [Inbox UI](tasks/milestone-1/1.7-inbox-ui.md) | 🟢 | 1.6 | Complete |
 
 **Parallel tracks possible**:
 - Track A: 1.1 → 1.3 (Database + OAuth)
