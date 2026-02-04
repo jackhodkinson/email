@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sanitizeHtml, plainTextToHtml } from "@/lib/sanitize";
 import {
   processQuotedContent,
@@ -13,54 +13,53 @@ interface EmailContentProps {
   bodyText: string | null;
 }
 
-interface ProcessedContent {
-  mainContent: string;
-  quotedContent: string | null;
-  hasQuotedContent: boolean;
-}
-
 export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
-  const [processedContent, setProcessedContent] = useState<ProcessedContent>({
-    mainContent: "",
-    quotedContent: null,
-    hasQuotedContent: false,
-  });
   const [showQuoted, setShowQuoted] = useState(false);
 
+  // Track previous content to reset showQuoted when email changes
+  const prevContentRef = useRef({ bodyHtml, bodyText });
   useEffect(() => {
-    // Reset expanded state when email changes
-    setShowQuoted(false);
+    if (
+      prevContentRef.current.bodyHtml !== bodyHtml ||
+      prevContentRef.current.bodyText !== bodyText
+    ) {
+      setShowQuoted(false);
+      prevContentRef.current = { bodyHtml, bodyText };
+    }
+  }, [bodyHtml, bodyText]);
 
+  // Process content with useMemo to avoid double-render from useEffect + useState
+  const processedContent = useMemo(() => {
     if (bodyHtml) {
-      // Process HTML content to detect quoted sections
       const { mainContent, quotedContent, hasQuotedContent } =
         processQuotedContent(bodyHtml);
-
-      setProcessedContent({
+      return {
         mainContent: sanitizeHtml(mainContent),
         quotedContent: quotedContent ? sanitizeHtml(quotedContent) : null,
         hasQuotedContent,
-      });
-    } else if (bodyText) {
-      // Process plain text to detect quoted sections
+      };
+    }
+
+    if (bodyText) {
       const { mainContent, quotedContent, hasQuotedContent } =
         processPlainTextQuotes(bodyText);
-
-      setProcessedContent({
+      return {
         mainContent: sanitizeHtml(plainTextToHtml(mainContent)),
         quotedContent: quotedContent
           ? sanitizeHtml(plainTextToHtml(quotedContent))
           : null,
         hasQuotedContent,
-      });
-    } else {
-      setProcessedContent({
-        mainContent: "<p>(No content)</p>",
-        quotedContent: null,
-        hasQuotedContent: false,
-      });
+      };
     }
+
+    return {
+      mainContent: "<p>(No content)</p>",
+      quotedContent: null,
+      hasQuotedContent: false,
+    };
   }, [bodyHtml, bodyText]);
+
+  const toggleQuoted = useCallback(() => setShowQuoted((prev) => !prev), []);
 
   return (
     <div className="email-content">
@@ -74,7 +73,7 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
       {processedContent.hasQuotedContent && processedContent.quotedContent && (
         <div className="mt-4">
           <button
-            onClick={() => setShowQuoted(!showQuoted)}
+            onClick={toggleQuoted}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
             type="button"
           >

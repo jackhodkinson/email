@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +15,11 @@ interface EmailItemProps {
   isSelected?: boolean;
 }
 
-export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(
-  function EmailItem({ email, isSelected }, ref) {
+export const EmailItem = memo(
+  forwardRef<HTMLDivElement, EmailItemProps>(function EmailItem(
+    { email, isSelected },
+    ref
+  ) {
     return (
       <div ref={ref}>
         <Link
@@ -69,7 +72,7 @@ export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(
         </Link>
       </div>
     );
-  }
+  })
 );
 
 // Extract display name from "Name <email>" format

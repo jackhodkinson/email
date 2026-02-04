@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { downloadAttachment as downloadAttachmentFn } from "../server/functions";
 
@@ -312,9 +312,10 @@ function LoadingSpinner({ className }: { className?: string }) {
 }
 
 /**
- * Single attachment item component
+ * Single attachment item component - memoized to prevent re-renders
+ * when sibling items change (e.g., download state)
  */
-function AttachmentItem({
+const AttachmentItem = memo(function AttachmentItem({
   attachment,
   emailId,
 }: {
@@ -343,13 +344,13 @@ function AttachmentItem({
       // Convert URL-safe base64 to standard base64
       const base64 = result.data.replace(/-/g, "+").replace(/_/g, "/");
 
-      // Create blob from base64
+      // Create blob from base64 - write directly to Uint8Array to avoid
+      // intermediate array allocation for large files
       const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
+      const byteArray = new Uint8Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+        byteArray[i] = byteCharacters.charCodeAt(i);
       }
-      const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: result.mimeType });
 
       // Create download link and trigger download
@@ -409,7 +410,7 @@ function AttachmentItem({
       </button>
     </div>
   );
-}
+});
 
 /**
  * Attachment list component - displays list of attachments for an email
