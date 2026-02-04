@@ -1,42 +1,58 @@
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { getEmailById } from "../server/functions";
-import { EmailView } from "../components/email-view";
-import { useKeyboard } from "../lib/hooks/use-keyboard";
+import { getEmailById, getInboxEmails } from "../server/functions";
+import { EmailSplitView } from "../components/email-split-view";
+import { NoAccount } from "../components/no-account";
 
 export const Route = createFileRoute("/email/$id")({
   loader: async ({ params }) => {
-    const email = await getEmailById({ data: { emailId: params.id } });
-    return { email };
+    const [email, inbox] = await Promise.all([
+      getEmailById({ data: { emailId: params.id } }),
+      getInboxEmails({ data: {} }),
+    ]);
+
+    return {
+      email,
+      emails: inbox.emails,
+      accountId: inbox.accountId,
+    };
   },
   component: EmailDetailPage,
   notFoundComponent: NotFound,
 });
 
 function EmailDetailPage() {
-  const { email } = Route.useLoaderData();
+  const { email, emails, accountId } = Route.useLoaderData();
   const navigate = useNavigate();
 
-  const goToInbox = useCallback(() => {
-    navigate({ to: "/" });
-  }, [navigate]);
-
-  const keyboardHandlers = useMemo(
-    () => ({
-      Escape: goToInbox,
-    }),
-    [goToInbox]
+  const handleSelectEmail = useCallback(
+    (id: string) => {
+      navigate({ to: "/email/$id", params: { id } });
+    },
+    [navigate]
   );
 
-  useKeyboard(keyboardHandlers);
-
-  if (!email) {
-    return <NotFound />;
+  if (!accountId) {
+    return <NoAccount />;
   }
 
   return (
     <div className="min-h-screen">
-      <EmailView email={email} />
+      <header className="border-b px-4 py-3 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Inbox</h1>
+        <span className="text-sm text-muted-foreground">
+          {emails.length} emails
+        </span>
+      </header>
+
+      <main className="h-[calc(100vh-57px)]">
+        <EmailSplitView
+          emails={emails}
+          selectedEmailId={email?.id ?? null}
+          email={email}
+          onSelectEmail={handleSelectEmail}
+        />
+      </main>
     </div>
   );
 }
