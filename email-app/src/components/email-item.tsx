@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
@@ -14,58 +15,62 @@ interface EmailItemProps {
   isSelected?: boolean;
 }
 
-export function EmailItem({ email, isSelected }: EmailItemProps) {
-  return (
-    <Link
-      to="/email/$id"
-      params={{ id: email.id }}
-      className={cn(
-        "block relative px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
-        isSelected && "bg-muted",
-        !email.isRead && "bg-blue-50 dark:bg-blue-950/20"
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          {/* Sender */}
-          <div
-            className={cn(
-              "text-sm truncate",
-              !email.isRead && "font-semibold"
-            )}
-          >
-            {formatSender(email.sender)}
+export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(
+  function EmailItem({ email, isSelected }, ref) {
+    return (
+      <div ref={ref}>
+        <Link
+          to="/email/$id"
+          params={{ id: email.id }}
+          className={cn(
+            "block relative px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
+            isSelected && "bg-primary/10 ring-2 ring-primary/20 ring-inset",
+            !email.isRead && !isSelected && "bg-blue-50 dark:bg-blue-950/20"
+          )}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {/* Sender */}
+              <div
+                className={cn(
+                  "text-sm truncate",
+                  !email.isRead && "font-semibold"
+                )}
+              >
+                {formatSender(email.sender)}
+              </div>
+
+              {/* Subject */}
+              <div
+                className={cn(
+                  "text-sm truncate",
+                  !email.isRead ? "font-medium" : "text-muted-foreground"
+                )}
+              >
+                {email.subject || "(no subject)"}
+              </div>
+
+              {/* Snippet */}
+              <div className="text-sm text-muted-foreground truncate">
+                {email.snippet}
+              </div>
+            </div>
+
+            {/* Date */}
+            <div className="text-xs text-muted-foreground whitespace-nowrap">
+              {formatDate(email.date)}
+            </div>
           </div>
 
-          {/* Subject */}
-          <div
-            className={cn(
-              "text-sm truncate",
-              !email.isRead ? "font-medium" : "text-muted-foreground"
-            )}
-          >
-            {email.subject || "(no subject)"}
-          </div>
-
-          {/* Snippet */}
-          <div className="text-sm text-muted-foreground truncate">
-            {email.snippet}
-          </div>
-        </div>
-
-        {/* Date */}
-        <div className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatDate(email.date)}
-        </div>
+          {/* Unread indicator */}
+          {!email.isRead && (
+            <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500" />
+          )}
+        </Link>
       </div>
-
-      {/* Unread indicator */}
-      {!email.isRead && (
-        <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500" />
-      )}
-    </Link>
-  );
-}
+    );
+  }
+);
 
 // Extract display name from "Name <email>" format
 function formatSender(sender: string): string {

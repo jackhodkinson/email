@@ -54,14 +54,14 @@ Building a view-only Gmail client MVP. Users can connect Gmail accounts, browse 
 ### Milestone 3: "Keyboard Navigation"
 
 **Goal**: Complete inbox → email → inbox flow using only keyboard
-**Status**: 🔴 Not Started (Blocked by M2)
+**Status**: 🟢 Complete
 
 | # | Task | Status | Dependencies | Notes |
 |---|------|--------|--------------|-------|
-| 3.1 | [Keyboard Hook](tasks/milestone-3/3.1-keyboard-hook.md) | 🔴 | M2 complete | |
-| 3.2 | [List Navigation](tasks/milestone-3/3.2-list-navigation.md) | 🔴 | 3.1 | j/k, Enter |
-| 3.3 | [Email View Navigation](tasks/milestone-3/3.3-email-navigation.md) | 🔴 | 3.1 | Escape/u |
-| 3.4 | [Help Modal](tasks/milestone-3/3.4-help-modal.md) | 🔴 | 3.1 | ? key |
+| 3.1 | [Keyboard Hook](tasks/milestone-3/3.1-keyboard-hook.md) | 🟢 | M2 complete | Complete |
+| 3.2 | [List Navigation](tasks/milestone-3/3.2-list-navigation.md) | 🟢 | 3.1 | Arrow keys, Enter |
+| 3.3 | [Email View Navigation](tasks/milestone-3/3.3-email-navigation.md) | 🟢 | 3.1 | Escape to close |
+| ~~3.4~~ | ~~Help Modal~~ | ⏭️ | - | Skipped - will add command bar later |
 
 ---
 

@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState, useCallback, useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getInboxEmails } from "../server/functions";
 import { EmailList } from "../components/email-list";
+import { useKeyboard } from "../lib/hooks/use-keyboard";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -11,6 +13,33 @@ export const Route = createFileRoute("/")({
 
 function InboxPage() {
   const { emails, accountId } = Route.useLoaderData();
+  const navigate = useNavigate();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const selectNext = useCallback(() => {
+    setSelectedIndex((prev) => Math.min(prev + 1, emails.length - 1));
+  }, [emails.length]);
+
+  const selectPrevious = useCallback(() => {
+    setSelectedIndex((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const openSelected = useCallback(() => {
+    if (emails.length > 0 && selectedIndex >= 0 && selectedIndex < emails.length) {
+      navigate({ to: "/email/$id", params: { id: emails[selectedIndex].id } });
+    }
+  }, [emails, selectedIndex, navigate]);
+
+  const keyboardHandlers = useMemo(
+    () => ({
+      ArrowDown: selectNext,
+      ArrowUp: selectPrevious,
+      Enter: openSelected,
+    }),
+    [selectNext, selectPrevious, openSelected]
+  );
+
+  useKeyboard(keyboardHandlers);
 
   if (!accountId) {
     return (
@@ -37,7 +66,7 @@ function InboxPage() {
       </header>
 
       <main className="h-[calc(100vh-57px)]">
-        <EmailList emails={emails} />
+        <EmailList emails={emails} selectedIndex={selectedIndex} />
       </main>
     </div>
   );

@@ -1,6 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useCallback } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { getEmailById } from "../server/functions";
 import { EmailView } from "../components/email-view";
+import { useKeyboard } from "../lib/hooks/use-keyboard";
 
 export const Route = createFileRoute("/email/$id")({
   loader: async ({ params }) => {
@@ -13,6 +15,20 @@ export const Route = createFileRoute("/email/$id")({
 
 function EmailDetailPage() {
   const { email } = Route.useLoaderData();
+  const navigate = useNavigate();
+
+  const goToInbox = useCallback(() => {
+    navigate({ to: "/" });
+  }, [navigate]);
+
+  const keyboardHandlers = useMemo(
+    () => ({
+      Escape: goToInbox,
+    }),
+    [goToInbox]
+  );
+
+  useKeyboard(keyboardHandlers);
 
   if (!email) {
     return <NotFound />;

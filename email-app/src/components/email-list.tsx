@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { EmailItem } from "./email-item";
 import { ScrollArea } from "./ui/scroll-area";
 
@@ -13,10 +14,19 @@ interface Email {
 
 interface EmailListProps {
   emails: Email[];
-  selectedId?: string;
+  selectedIndex?: number;
 }
 
-export function EmailList({ emails, selectedId }: EmailListProps) {
+export function EmailList({ emails, selectedIndex = -1 }: EmailListProps) {
+  const selectedRef = useRef<HTMLDivElement>(null);
+
+  // Scroll selected item into view when selection changes
+  useEffect(() => {
+    if (selectedRef.current) {
+      selectedRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [selectedIndex]);
+
   if (emails.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -28,11 +38,12 @@ export function EmailList({ emails, selectedId }: EmailListProps) {
   return (
     <ScrollArea className="h-full">
       <div className="divide-y">
-        {emails.map((email) => (
+        {emails.map((email, index) => (
           <EmailItem
             key={email.id}
             email={email}
-            isSelected={email.id === selectedId}
+            isSelected={index === selectedIndex}
+            ref={index === selectedIndex ? selectedRef : undefined}
           />
         ))}
       </div>
