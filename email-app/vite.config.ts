@@ -14,7 +14,9 @@ const config = defineConfig({
   },
   ssr: {
     external: ['bun', 'bun:sql'],
-    noExternal: true,
+  },
+  optimizeDeps: {
+    exclude: ['bun', 'bun:sql'],
   },
   build: {
     rollupOptions: {
