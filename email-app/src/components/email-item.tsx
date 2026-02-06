@@ -1,8 +1,8 @@
 import { forwardRef, memo } from "react";
-import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 interface EmailItemProps {
+  id: string;
   email: {
     id: string;
     sender: string;
@@ -13,66 +13,73 @@ interface EmailItemProps {
     hasAttachments: boolean;
   };
   isSelected?: boolean;
+  threadCount?: number;
+  onSelectEmail?: (id: string) => void;
 }
 
 export const EmailItem = memo(
   forwardRef<HTMLDivElement, EmailItemProps>(function EmailItem(
-    { email, isSelected },
-    ref
+    { id, email, isSelected, threadCount, onSelectEmail },
+    ref,
   ) {
     return (
-      <div ref={ref}>
-        <Link
-          to="/email/$id"
-          params={{ id: email.id }}
-          className={cn(
-            "block relative px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
-            isSelected && "bg-primary/10 ring-2 ring-primary/20 ring-inset",
-            !email.isRead && !isSelected && "bg-blue-50 dark:bg-blue-950/20"
-          )}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              {/* Sender */}
-              <div
-                className={cn(
-                  "text-sm truncate",
-                  !email.isRead && "font-semibold"
-                )}
-              >
-                {formatSender(email.sender)}
-              </div>
-
-              {/* Subject */}
-              <div
-                className={cn(
-                  "text-sm truncate",
-                  !email.isRead ? "font-medium" : "text-muted-foreground"
-                )}
-              >
-                {email.subject || "(no subject)"}
-              </div>
-
-              {/* Snippet */}
-              <div className="text-sm text-muted-foreground truncate">
-                {email.snippet}
-              </div>
+      <div
+        ref={ref}
+        id={id}
+        role="option"
+        aria-selected={Boolean(isSelected)}
+        className={cn(
+          "email-item",
+          isSelected && "email-item--selected",
+          !email.isRead && !isSelected && "email-item--unread",
+        )}
+        onClick={() => onSelectEmail?.(email.id)}
+      >
+        <div className="flex items-start justify-between gap-2 overflow-hidden">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            {/* Sender */}
+            <div
+              className={cn("email-item__sender", !email.isRead && "font-semibold")}
+            >
+              {formatSender(email.sender)}
             </div>
 
-            {/* Date */}
-            <div className="text-xs text-muted-foreground whitespace-nowrap">
-              {formatDate(email.date)}
+            {/* Subject */}
+            <div
+              className={cn(
+                "email-item__subject",
+                !email.isRead ? "font-medium" : "email-item__subject--read",
+              )}
+            >
+              {email.subject || "(no subject)"}
+            </div>
+
+            {/* Snippet */}
+            <div className="email-item__snippet">
+              {email.snippet}
             </div>
           </div>
 
-          {/* Unread indicator */}
-          {!email.isRead && (
-            <div className="absolute left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500" />
-          )}
-        </Link>
+          {/* Date and thread count */}
+          <div className="flex flex-col items-end gap-1">
+            <div className="email-item__date">
+              {formatDate(email.date)}
+            </div>
+            {threadCount && threadCount > 1 && (
+              <span className="badge">
+                {threadCount}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Unread indicator */}
+        {!email.isRead && (
+          <div className="unread-dot" />
+        )}
       </div>
     );
-  })
+  }),
 );
 
 // Extract display name from "Name <email>" format

@@ -160,6 +160,117 @@ export const getAttachments = createServerFn({ method: "GET" })
     }));
   });
 
+// Get inbox emails grouped by thread for display
+export const getThreadedInboxEmails = createServerFn({ method: "GET" })
+  .inputValidator((data: { accountId?: string; limit?: number }) => data)
+  .handler(async ({ data }) => {
+    const { getThreadedEmails, getAccounts: getAllAccounts } = await import(
+      "../lib/db/queries"
+    );
+
+    // If no account specified, use first account
+    let accountId = data.accountId;
+    if (!accountId) {
+      const accounts = await getAllAccounts();
+      if (accounts.length === 0) {
+        return { threads: [], accountId: null };
+      }
+      accountId = accounts[0].id;
+    }
+
+    const threads = await getThreadedEmails(accountId, data.limit || 50);
+
+    // Transform threads for frontend
+    const transformedThreads = threads.map((thread) => ({
+      id: thread.id,
+      threadId: thread.thread_id,
+      subject: thread.subject,
+      sender: thread.sender,
+      recipients: thread.recipients ? JSON.parse(thread.recipients) : [],
+      snippet: thread.snippet,
+      date: thread.date,
+      labels: thread.labels ? JSON.parse(thread.labels) : [],
+      hasAttachments: thread.has_attachments === 1,
+      isRead: thread.is_read === 1,
+      threadCount: Number(thread.thread_count),
+    }));
+
+    return {
+      threads: transformedThreads,
+      accountId,
+    };
+  });
+
+// Search inbox emails grouped by thread
+export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
+  .inputValidator(
+    (data: { accountId?: string; query: string; limit?: number }) => data
+  )
+  .handler(async ({ data }) => {
+    const { searchThreadedEmails, getAccounts: getAllAccounts } = await import(
+      "../lib/db/queries"
+    );
+
+    let accountId = data.accountId;
+    if (!accountId) {
+      const accounts = await getAllAccounts();
+      if (accounts.length === 0) {
+        return { threads: [], accountId: null };
+      }
+      accountId = accounts[0].id;
+    }
+
+    const threads = await searchThreadedEmails(
+      accountId,
+      data.query,
+      data.limit || 50
+    );
+
+    const transformedThreads = threads.map((thread) => ({
+      id: thread.id,
+      threadId: thread.thread_id,
+      subject: thread.subject,
+      sender: thread.sender,
+      recipients: thread.recipients ? JSON.parse(thread.recipients) : [],
+      snippet: thread.snippet,
+      date: thread.date,
+      labels: thread.labels ? JSON.parse(thread.labels) : [],
+      hasAttachments: thread.has_attachments === 1,
+      isRead: thread.is_read === 1,
+      threadCount: Number(thread.thread_count),
+    }));
+
+    return {
+      threads: transformedThreads,
+      accountId,
+    };
+  });
+
+// Get all emails in a thread
+export const getThreadEmails = createServerFn({ method: "GET" })
+  .inputValidator((data: { threadId: string }) => data)
+  .handler(async ({ data }) => {
+    const { getEmailsByThread } = await import("../lib/db/queries");
+
+    const emails = await getEmailsByThread(data.threadId);
+
+    return emails.map((email) => ({
+      id: email.id,
+      accountId: email.account_id,
+      threadId: email.thread_id,
+      subject: email.subject,
+      sender: email.sender,
+      recipients: email.recipients ? JSON.parse(email.recipients) : [],
+      snippet: email.snippet,
+      bodyText: email.body_text,
+      bodyHtml: email.body_html,
+      date: email.date,
+      labels: email.labels ? JSON.parse(email.labels) : [],
+      hasAttachments: email.has_attachments === 1,
+      isRead: email.is_read === 1,
+    }));
+  });
+
 // Download attachment data from Gmail API
 export const downloadAttachment = createServerFn({ method: "GET" })
   .inputValidator((data: { emailId: string; attachmentId: string }) => data)

@@ -74,7 +74,7 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
         <div className="mt-4">
           <button
             onClick={toggleQuoted}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
+            className="quote-toggle"
             type="button"
           >
             {showQuoted ? (
@@ -89,8 +89,8 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
 
           {/* Collapsed indicator (three dots) when hidden */}
           {!showQuoted && (
-            <div className="mt-2 px-3 py-2 bg-muted/50 rounded border-l-2 border-muted-foreground/30">
-              <span className="text-muted-foreground text-sm tracking-widest">
+            <div className="quote-collapsed">
+              <span className="quote-collapsed__dots">
                 ...
               </span>
             </div>
@@ -98,9 +98,9 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
 
           {/* Quoted content (collapsible) */}
           {showQuoted && (
-            <div className="mt-2 pl-3 border-l-2 border-muted-foreground/30">
+            <div className="quote-expanded">
               <div
-                className="prose prose-sm max-w-none dark:prose-invert text-muted-foreground"
+                className="prose prose-sm max-w-none dark:prose-invert text-muted"
                 dangerouslySetInnerHTML={{
                   __html: processedContent.quotedContent,
                 }}

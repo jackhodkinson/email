@@ -1,7 +1,8 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRoute, Link } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
+import { Agentation } from 'agentation'
 import Header from '../components/Header'
 
 import appCss from '../styles.css?url'
@@ -29,7 +30,20 @@ export const Route = createRootRoute({
   }),
 
   shellComponent: RootDocument,
+  notFoundComponent: NotFound,
 })
+
+function NotFound() {
+  return (
+    <div className="empty-state">
+      <h1 className="empty-state__title">Page not found</h1>
+      <p className="empty-state__text">The page you're looking for doesn't exist.</p>
+      <Link to="/" search={{ q: undefined }} className="link-primary">
+        Back to Inbox
+      </Link>
+    </div>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
@@ -53,6 +67,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             },
           ]}
         />
+        {process.env.NODE_ENV === 'development' && (
+          <Agentation endpoint="http://localhost:4747" />
+        )}
         <Scripts />
       </body>
     </html>

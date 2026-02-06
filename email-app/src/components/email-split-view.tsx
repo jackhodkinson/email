@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { EmailList } from "./email-list";
 import { EmailView } from "./email-view";
-import { useKeyboard } from "../lib/hooks/use-keyboard";
-import { cn } from "@/lib/utils";
+import { ThreadView } from "./thread-view";
+import { useCommands } from "@/lib/commands/use-commands";
+import { getShortcutsForSurface } from "@/lib/commands/shortcuts";
 
 interface EmailSummary {
   id: string;
@@ -12,6 +17,7 @@ interface EmailSummary {
   date: number;
   isRead: boolean;
   hasAttachments: boolean;
+  threadCount?: number;
 }
 
 interface EmailDetail {
@@ -27,24 +33,80 @@ interface EmailDetail {
   labels: string[];
 }
 
+interface ThreadEmail {
+  id: string;
+  subject: string | null;
+  sender: string;
+  recipients: string[];
+  bodyText: string | null;
+  bodyHtml: string | null;
+  date: number;
+  hasAttachments: boolean;
+  isRead: boolean;
+}
+
 interface EmailSplitViewProps {
   emails: EmailSummary[];
   selectedEmailId?: string | null;
   email?: EmailDetail | null;
+  threadEmails?: ThreadEmail[] | null;
   onSelectEmail: (id: string) => void;
+  focusSearch?: () => void;
+  searchParams?: Record<string, unknown>;
 }
 
-type Pane = "list" | "viewer";
+const LIST_SHORTCUTS = getShortcutsForSurface("list");
+const VIEWER_SHORTCUTS = getShortcutsForSurface("viewer");
+
+function isInputElement(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const tagName = el.tagName.toLowerCase();
+  if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+    return true;
+  }
+  return el.isContentEditable;
+}
+
+function shouldIgnoreKey(event: ReactKeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  if (!isInputElement(target)) return false;
+  if (event.key === "Escape") return false;
+  return true;
+}
+
+function isFocusableElement(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const tagName = el.tagName.toLowerCase();
+  if (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    tagName === "button"
+  ) {
+    return true;
+  }
+  if (tagName === "a" && (el as HTMLAnchorElement).href) return true;
+  if (el.isContentEditable) return true;
+  const tabIndexAttr = el.getAttribute("tabindex");
+  if (tabIndexAttr !== null) {
+    return tabIndexAttr !== "-1";
+  }
+  return false;
+}
+
+const noop = () => {};
 
 export function EmailSplitView({
   emails,
   selectedEmailId,
   email,
+  threadEmails,
   onSelectEmail,
+  focusSearch = noop,
+  searchParams,
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
-  const [focusedPane, setFocusedPane] = useState<Pane>("list");
   const [localSelectedIndex, setLocalSelectedIndex] = useState(-1);
 
   const resolvedSelectedIndex = useMemo(() => {
@@ -63,14 +125,18 @@ export function EmailSplitView({
     }
   }, [emails, selectedEmailId]);
 
+  useEffect(() => {
+    if (document.activeElement === document.body) {
+      listRef.current?.focus({ preventScroll: true });
+    }
+  }, []);
+
   const focusList = useCallback(() => {
-    setFocusedPane("list");
-    listRef.current?.focus();
+    listRef.current?.focus({ preventScroll: true });
   }, []);
 
   const focusViewer = useCallback(() => {
-    setFocusedPane("viewer");
-    viewerRef.current?.focus();
+    viewerRef.current?.focus({ preventScroll: true });
   }, []);
 
   const selectIndex = useCallback(
@@ -79,78 +145,87 @@ export function EmailSplitView({
       setLocalSelectedIndex(index);
       onSelectEmail(emails[index].id);
     },
-    [emails, onSelectEmail]
+    [emails, onSelectEmail],
   );
 
-  const selectNext = useCallback(() => {
-    if (emails.length === 0) return;
-    const nextIndex =
-      resolvedSelectedIndex < 0
-        ? 0
-        : Math.min(resolvedSelectedIndex + 1, emails.length - 1);
-    selectIndex(nextIndex);
-  }, [emails.length, resolvedSelectedIndex, selectIndex]);
+  const handleSelectEmail = useCallback(
+    (id: string) => {
+      const index = emails.findIndex((item) => item.id === id);
+      if (index >= 0) {
+        selectIndex(index);
+        return;
+      }
+      onSelectEmail(id);
+    },
+    [emails, onSelectEmail, selectIndex],
+  );
 
-  const selectPrevious = useCallback(() => {
-    if (emails.length === 0) return;
-    const nextIndex =
-      resolvedSelectedIndex < 0
-        ? 0
-        : Math.max(resolvedSelectedIndex - 1, 0);
-    selectIndex(nextIndex);
-  }, [emails.length, resolvedSelectedIndex, selectIndex]);
+  const commands = useCommands({
+    emails,
+    selectedIndex: resolvedSelectedIndex,
+    setSelectedIndex: selectIndex,
+    focusList,
+    focusViewer,
+    focusSearch,
+    searchParams,
+  });
 
-  const openSelected = useCallback(() => {
-    if (emails.length === 0) return;
-    if (resolvedSelectedIndex < 0) {
-      selectIndex(0);
-      return;
-    }
-    const selected = emails[resolvedSelectedIndex];
-    if (selected) {
-      onSelectEmail(selected.id);
-    }
-  }, [emails, onSelectEmail, resolvedSelectedIndex, selectIndex]);
+  const handleListKeyDown = useCallback(
+    (event: ReactKeyboardEvent) => {
+      if (shouldIgnoreKey(event)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const mapping = LIST_SHORTCUTS.find((shortcut) => shortcut.key === key);
+      if (!mapping) return;
+      const command = commands[mapping.command];
+      if (!command) return;
+      event.preventDefault();
+      command.execute();
+    },
+    [commands],
+  );
 
-  const keyboardHandlers = useMemo(() => {
-    const handlers: Record<string, () => void> = {
-      ArrowLeft: () => {
-        if (focusedPane === "viewer") {
-          focusList();
-        }
-      },
-      ArrowRight: () => {
-        if (focusedPane === "list") {
-          focusViewer();
-        }
-      },
-    };
+  const handleViewerKeyDown = useCallback(
+    (event: ReactKeyboardEvent) => {
+      if (shouldIgnoreKey(event)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const mapping = VIEWER_SHORTCUTS.find((shortcut) => shortcut.key === key);
+      if (!mapping) return;
+      const command = commands[mapping.command];
+      if (!command) return;
+      event.preventDefault();
+      command.execute();
+    },
+    [commands],
+  );
 
-    if (focusedPane === "list") {
-      handlers.ArrowDown = selectNext;
-      handlers.ArrowUp = selectPrevious;
-      handlers.Enter = openSelected;
-    }
+  const handleListPointerDown = useCallback((event: ReactPointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (isFocusableElement(target)) return;
+    listRef.current?.focus({ preventScroll: true });
+  }, []);
 
-    return handlers;
-  }, [focusList, focusViewer, focusedPane, openSelected, selectNext, selectPrevious]);
-
-  useKeyboard(keyboardHandlers);
+  const handleViewerPointerDown = useCallback((event: ReactPointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (isFocusableElement(target)) return;
+    viewerRef.current?.focus({ preventScroll: true });
+  }, []);
 
   return (
     <div className="flex h-full flex-col md:flex-row">
       <section
-        ref={listRef}
-        tabIndex={0}
-        aria-label="Email list"
-        onMouseDown={focusList}
-        className={cn(
-          "md:w-[360px] border-b md:border-b-0 md:border-r h-1/2 md:h-full min-h-0",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        )}
+        onKeyDownCapture={handleListKeyDown}
+        onPointerDownCapture={handleListPointerDown}
+        className="md:w-[360px] md:flex-shrink-0 border-b md:border-b-0 md:border-r h-1/2 md:h-full min-h-0"
       >
-        <div className="h-full min-h-0">
-          <EmailList emails={emails} selectedIndex={resolvedSelectedIndex} />
+        <div className="h-full min-h-0 w-full">
+          <EmailList
+            emails={emails}
+            selectedIndex={resolvedSelectedIndex}
+            listRef={listRef}
+            onSelectEmail={handleSelectEmail}
+          />
         </div>
       </section>
 
@@ -158,19 +233,22 @@ export function EmailSplitView({
         ref={viewerRef}
         tabIndex={0}
         aria-label="Email viewer"
-        onMouseDown={focusViewer}
-        className={cn(
-          "flex-1 min-w-0 h-1/2 md:h-full min-h-0",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        )}
+        onKeyDownCapture={handleViewerKeyDown}
+        onPointerDownCapture={handleViewerPointerDown}
+        className="flex-1 min-w-0 h-1/2 md:h-full min-h-0 focus-ring"
       >
-        {email ? (
+        {threadEmails && threadEmails.length > 1 ? (
+          <ThreadView
+            emails={threadEmails}
+            subject={email?.subject ?? null}
+          />
+        ) : email ? (
           <EmailView email={email} />
         ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
+          <div className="empty-state">
             <div className="text-center space-y-2">
-              <p className="text-sm">Select an email to preview</p>
-              <p className="text-xs">Use left/right arrows to move focus.</p>
+              <p className="text-body text-muted">Select an email to preview</p>
+              <p className="text-caption">Use left/right arrows to move focus.</p>
             </div>
           </div>
         )}

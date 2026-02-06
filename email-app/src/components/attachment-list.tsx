@@ -87,6 +87,17 @@ function getFileIcon(mimeType: string): string {
   return "file";
 }
 
+// Map file types to CSS color classes
+const FILE_ICON_CLASS: Record<string, string> = {
+  pdf: "file-icon--pdf",
+  document: "file-icon--doc",
+  spreadsheet: "file-icon--sheet",
+  presentation: "file-icon--slides",
+  video: "file-icon--video",
+  audio: "file-icon--audio",
+  archive: "file-icon--archive",
+};
+
 /**
  * File type icon component using SVG icons
  */
@@ -97,7 +108,7 @@ function FileTypeIcon({
   type: string;
   className?: string;
 }) {
-  const iconClass = cn("w-5 h-5", className);
+  const iconClass = cn("w-5 h-5", FILE_ICON_CLASS[type], className);
 
   switch (type) {
     case "image":
@@ -119,7 +130,7 @@ function FileTypeIcon({
     case "pdf":
       return (
         <svg
-          className={cn(iconClass, "text-red-500")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -135,7 +146,7 @@ function FileTypeIcon({
     case "document":
       return (
         <svg
-          className={cn(iconClass, "text-blue-500")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -151,7 +162,7 @@ function FileTypeIcon({
     case "spreadsheet":
       return (
         <svg
-          className={cn(iconClass, "text-green-500")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -167,7 +178,7 @@ function FileTypeIcon({
     case "presentation":
       return (
         <svg
-          className={cn(iconClass, "text-orange-500")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -183,7 +194,7 @@ function FileTypeIcon({
     case "video":
       return (
         <svg
-          className={cn(iconClass, "text-purple-500")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -199,7 +210,7 @@ function FileTypeIcon({
     case "audio":
       return (
         <svg
-          className={cn(iconClass, "text-pink-500")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -215,7 +226,7 @@ function FileTypeIcon({
     case "archive":
       return (
         <svg
-          className={cn(iconClass, "text-yellow-600")}
+          className={iconClass}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -373,8 +384,8 @@ const AttachmentItem = memo(function AttachmentItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors",
-        error && "border-red-300 dark:border-red-800"
+        "attachment-card",
+        error && "attachment-card--error"
       )}
     >
       {/* File type icon */}
@@ -382,30 +393,26 @@ const AttachmentItem = memo(function AttachmentItem({
 
       {/* File info */}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate" title={attachment.filename}>
+        <div className="attachment-card__name" title={attachment.filename}>
           {attachment.filename}
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-caption">
           {formatFileSize(attachment.size)}
         </div>
-        {error && <div className="text-xs text-red-500 mt-1">{error}</div>}
+        {error && <div className="attachment-card__error">{error}</div>}
       </div>
 
       {/* Download button */}
       <button
         onClick={handleDownload}
         disabled={isDownloading}
-        className={cn(
-          "shrink-0 p-2 rounded-md hover:bg-muted transition-colors",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          "disabled:opacity-50 disabled:cursor-not-allowed"
-        )}
+        className="btn-icon shrink-0"
         title={isDownloading ? "Downloading..." : "Download attachment"}
       >
         {isDownloading ? (
           <LoadingSpinner />
         ) : (
-          <DownloadIcon className="text-muted-foreground" />
+          <DownloadIcon className="text-muted" />
         )}
       </button>
     </div>
@@ -426,7 +433,7 @@ export function AttachmentList({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="text-sm font-medium text-muted-foreground">
+      <div className="text-body text-muted font-medium">
         Attachments ({attachments.length})
       </div>
       <div className="grid gap-2 sm:grid-cols-2">

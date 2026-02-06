@@ -60,6 +60,22 @@ code {
 
 :root {
   --radius: 0.625rem;
+
+  /* Semantic: unread email */
+  --unread-bg: oklch(0.97 0.01 250);
+  --unread-dot: oklch(0.55 0.2 260);
+
+  /* Semantic: file type icon colors */
+  --file-pdf: oklch(0.63 0.24 25);
+  --file-doc: oklch(0.55 0.2 260);
+  --file-sheet: oklch(0.55 0.17 155);
+  --file-slides: oklch(0.65 0.17 50);
+  --file-video: oklch(0.55 0.2 300);
+  --file-audio: oklch(0.6 0.2 340);
+  --file-archive: oklch(0.6 0.13 80);
+
+  /* Semantic: error */
+  --error-border: oklch(0.75 0.1 20);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -94,6 +110,18 @@ code {
 }
 
 .dark {
+  --unread-bg: oklch(0.22 0.02 260);
+  --unread-dot: oklch(0.55 0.2 260);
+
+  --file-pdf: oklch(0.63 0.24 25);
+  --file-doc: oklch(0.55 0.2 260);
+  --file-sheet: oklch(0.55 0.17 155);
+  --file-slides: oklch(0.65 0.17 50);
+  --file-video: oklch(0.55 0.2 300);
+  --file-audio: oklch(0.6 0.2 340);
+  --file-archive: oklch(0.6 0.13 80);
+
+  --error-border: oklch(0.4 0.1 20);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -136,5 +164,415 @@ code {
   }
   body {
     @apply bg-background text-foreground h-full overflow-hidden flex flex-col;
+  }
+}
+
+@layer components {
+  /* ── Typography ─────────────────────────────────────────── */
+  .heading-page {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 600;
+  }
+
+  .text-body {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .text-caption {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+  }
+
+  .text-muted {
+    color: var(--muted-foreground);
+  }
+
+  .text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Focus ring (shared) ───────────────────────────────── */
+  .focus-ring {
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px oklch(from var(--primary) l c h / 0.4);
+    }
+    &:focus-within {
+      box-shadow: inset 0 0 0 2px oklch(from var(--primary) l c h / 0.4);
+    }
+  }
+
+  /* ── Interactive surface ───────────────────────────────── */
+  .interactive-surface {
+    cursor: pointer;
+    transition: background-color 150ms ease;
+    &:hover {
+      background-color: oklch(from var(--muted) l c h / 0.5);
+    }
+  }
+
+  /* ── Button: secondary ─────────────────────────────────── */
+  .btn-secondary {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--input);
+    background-color: var(--background);
+    transition: background-color 150ms ease, color 150ms ease;
+    &:hover {
+      background-color: var(--accent);
+      color: var(--accent-foreground);
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  /* ── Button: icon ──────────────────────────────────────── */
+  .btn-icon {
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease;
+    &:hover {
+      background-color: var(--muted);
+    }
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background);
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  /* ── Email Item ────────────────────────────────────────── */
+  .email-item {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: background-color 150ms ease;
+    &:hover {
+      background-color: oklch(from var(--muted) l c h / 0.5);
+    }
+  }
+  .email-item--selected {
+    background-color: oklch(from var(--primary) l c h / 0.1);
+  }
+  .email-item--unread {
+    background-color: var(--unread-bg);
+  }
+
+  .email-item__sender {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .email-item__subject {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .email-item__subject--read {
+    color: var(--muted-foreground);
+  }
+
+  .email-item__snippet {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .email-item__date {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .unread-dot {
+    position: absolute;
+    left: 0.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background-color: var(--unread-dot);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding-inline: 0.375rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    background-color: var(--muted);
+    border-radius: 9999px;
+  }
+
+  /* ── Email Meta (shared between email-view & thread-message) */
+  .email-meta {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  .email-meta__row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .email-meta__label {
+    font-weight: 500;
+    color: var(--muted-foreground);
+    width: 3rem;
+  }
+  .email-attachment-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+  }
+
+  /* ── Panel ─────────────────────────────────────────────── */
+  .panel-header {
+    padding: 1rem 1.5rem;
+    flex-shrink: 0;
+  }
+  .panel-header--bordered {
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-body {
+    padding: 1rem 1.5rem;
+  }
+
+  /* ── Thread message ────────────────────────────────────── */
+  .thread-msg {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .thread-msg__header {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    transition: background-color 150ms ease;
+    &:hover {
+      background-color: oklch(from var(--muted) l c h / 0.5);
+    }
+  }
+  .thread-msg__header--expanded {
+    border-bottom: 1px solid var(--border);
+  }
+  .thread-msg__body {
+    padding: 0.75rem 1rem;
+  }
+
+  .avatar {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background-color: oklch(from var(--primary) l c h / 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--primary);
+  }
+
+  /* ── Quoted content ────────────────────────────────────── */
+  .quote-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+    padding-block: 0.25rem;
+    transition: color 150ms ease;
+    &:hover {
+      color: var(--foreground);
+    }
+  }
+
+  .quote-collapsed {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: oklch(from var(--muted) l c h / 0.5);
+    border-radius: var(--radius-md);
+    border-left: 2px solid oklch(from var(--muted-foreground) l c h / 0.3);
+  }
+  .quote-collapsed__dots {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    letter-spacing: 0.1em;
+  }
+
+  .quote-expanded {
+    margin-top: 0.5rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid oklch(from var(--muted-foreground) l c h / 0.3);
+  }
+
+  /* ── Attachment card ───────────────────────────────────── */
+  .attachment-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background-color: var(--card);
+    transition: background-color 150ms ease;
+    &:hover {
+      background-color: oklch(from var(--muted) l c h / 0.5);
+    }
+  }
+  .attachment-card--error {
+    border-color: var(--error-border);
+  }
+  .attachment-card__name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attachment-card__error {
+    font-size: 0.75rem;
+    color: var(--destructive);
+    margin-top: 0.25rem;
+  }
+
+  /* ── File icon colors ──────────────────────────────────── */
+  .file-icon--pdf { color: var(--file-pdf); }
+  .file-icon--doc { color: var(--file-doc); }
+  .file-icon--sheet { color: var(--file-sheet); }
+  .file-icon--slides { color: var(--file-slides); }
+  .file-icon--video { color: var(--file-video); }
+  .file-icon--audio { color: var(--file-audio); }
+  .file-icon--archive { color: var(--file-archive); }
+
+  /* ── Search input ──────────────────────────────────────── */
+  .search-input {
+    width: 100%;
+    height: 2rem;
+    padding: 0 2rem 0 2rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    background-color: var(--background);
+    color: var(--foreground);
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+    &:focus {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 1px var(--ring);
+    }
+  }
+
+  /* ── Page header ───────────────────────────────────────── */
+  .page-header {
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    flex-shrink: 0;
+  }
+  .page-header__title {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    font-weight: 600;
+  }
+  .page-header__count {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+  }
+
+  /* ── Empty state ───────────────────────────────────────── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 1rem;
+  }
+  .empty-state__title {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 600;
+  }
+  .empty-state__text {
+    color: var(--muted-foreground);
+  }
+
+  /* ── Code block (setup instructions) ───────────────────── */
+  .code-block {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground);
+    background-color: var(--muted);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  }
+
+  /* ── App header (navigation) ───────────────────────────── */
+  .app-header {
+    padding: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--background);
+    color: var(--foreground);
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .app-header__nav {
+    display: flex;
+    flex-direction: row;
+  }
+  .app-header__link {
+    padding: 0 0.5rem;
+    font-weight: 700;
+  }
+
+  /* ── Link: primary ─────────────────────────────────────── */
+  .link-primary {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--primary);
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }

@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { EmailContent } from "./email-content";
 import { Separator } from "./ui/separator";
 
@@ -20,56 +19,33 @@ interface EmailViewProps {
 export function EmailView({ email }: EmailViewProps) {
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Header with back button */}
-      <div className="flex items-center gap-4 px-4 py-3 border-b flex-shrink-0">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-          Back to Inbox
-        </Link>
-      </div>
-
       {/* Email metadata */}
-      <div className="px-6 py-4 space-y-2 flex-shrink-0">
-        <h1 className="text-xl font-semibold">
+      <div className="panel-header space-y-2">
+        <h1 className="heading-page">
           {email.subject || "(no subject)"}
         </h1>
 
-        <div className="space-y-1 text-sm">
-          <div className="flex gap-2">
-            <span className="font-medium text-muted-foreground w-12">From:</span>
+        <div className="email-meta space-y-1">
+          <div className="email-meta__row">
+            <span className="email-meta__label">From:</span>
             <span>{email.sender}</span>
           </div>
 
           {email.recipients.length > 0 && (
-            <div className="flex gap-2">
-              <span className="font-medium text-muted-foreground w-12">To:</span>
+            <div className="email-meta__row">
+              <span className="email-meta__label">To:</span>
               <span>{email.recipients.join(", ")}</span>
             </div>
           )}
 
-          <div className="flex gap-2">
-            <span className="font-medium text-muted-foreground w-12">Date:</span>
+          <div className="email-meta__row">
+            <span className="email-meta__label">Date:</span>
             <span>{formatFullDate(email.date)}</span>
           </div>
         </div>
 
         {email.hasAttachments && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="email-attachment-hint">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="14"
@@ -91,7 +67,7 @@ export function EmailView({ email }: EmailViewProps) {
       <Separator />
 
       {/* Email body */}
-      <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
+      <div className="panel-body flex-1 min-h-0 overflow-auto">
         <EmailContent bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
       </div>
     </div>

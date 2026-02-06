@@ -358,3 +358,80 @@ export async function insertAttachments(attachments: AttachmentInput[]): Promise
 export async function deleteAttachmentsByEmail(emailId: string): Promise<void> {
   await db`DELETE FROM attachments WHERE email_id = ${emailId}`;
 }
+
+// =============================================================================
+// Thread Queries
+// =============================================================================
+
+export interface ThreadSummary extends Email {
+  thread_count: number;
+}
+
+/**
+ * Get emails grouped by thread, returning the most recent email per thread with thread count
+ */
+export async function getThreadedEmails(
+  accountId: string,
+  limit: number = 100
+): Promise<ThreadSummary[]> {
+  const rows = await db`
+    WITH thread_stats AS (
+      SELECT
+        thread_id,
+        COUNT(*) as thread_count,
+        MAX(date) as latest_date
+      FROM emails
+      WHERE account_id = ${accountId}
+      GROUP BY thread_id
+    )
+    SELECT e.*, ts.thread_count
+    FROM emails e
+    INNER JOIN thread_stats ts ON e.thread_id = ts.thread_id AND e.date = ts.latest_date
+    WHERE e.account_id = ${accountId}
+    ORDER BY e.date DESC
+    LIMIT ${limit}
+  `;
+  return rows as ThreadSummary[];
+}
+
+/**
+ * Search emails grouped by thread, returning the most recent email per thread with thread count.
+ * Searches subject, sender, snippet, and body_text using LIKE.
+ */
+export async function searchThreadedEmails(
+  accountId: string,
+  query: string,
+  limit: number = 100
+): Promise<ThreadSummary[]> {
+  const pattern = `%${query}%`;
+  const rows = await db`
+    WITH matching_threads AS (
+      SELECT DISTINCT thread_id
+      FROM emails
+      WHERE account_id = ${accountId}
+        AND (
+          subject LIKE ${pattern}
+          OR sender LIKE ${pattern}
+          OR snippet LIKE ${pattern}
+          OR body_text LIKE ${pattern}
+        )
+    ),
+    thread_stats AS (
+      SELECT
+        e.thread_id,
+        COUNT(*) as thread_count,
+        MAX(e.date) as latest_date
+      FROM emails e
+      INNER JOIN matching_threads mt ON e.thread_id = mt.thread_id
+      WHERE e.account_id = ${accountId}
+      GROUP BY e.thread_id
+    )
+    SELECT e.*, ts.thread_count
+    FROM emails e
+    INNER JOIN thread_stats ts ON e.thread_id = ts.thread_id AND e.date = ts.latest_date
+    WHERE e.account_id = ${accountId}
+    ORDER BY e.date DESC
+    LIMIT ${limit}
+  `;
+  return rows as ThreadSummary[];
+}

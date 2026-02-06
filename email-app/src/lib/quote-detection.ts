@@ -52,6 +52,15 @@ export function processQuotedContent(html: string): {
   quotedContent: string | null;
   hasQuotedContent: boolean;
 } {
+  // DOMParser is not available on the server, return content unprocessed during SSR
+  if (typeof window === "undefined") {
+    return {
+      mainContent: html,
+      quotedContent: null,
+      hasQuotedContent: false,
+    };
+  }
+
   // Create a temporary DOM to process the HTML
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
