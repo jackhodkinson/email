@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegoodthings/tauri-schema/refs/heads/v2/schema.json",
+  "productName": "Email",
+  "version": "0.1.0",
+  "identifier": "com.email.app",
+  "build": {
+    "beforeDevCommand": "bun --bun run dev",
+    "devUrl": "http://localhost:3001",
+    "beforeBuildCommand": "bun --bun run build",
+    "frontendDist": "../dist/client"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Email",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/bun"],
+    "resources": {
+      "../dist/server/*": "server/",
+      "../dist/server/assets/*": "server/assets/",
+      "../dist/client/**/*": "client/",
+      "../server.ts": "server.ts"
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

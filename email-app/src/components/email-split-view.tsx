@@ -213,13 +213,13 @@ export function EmailSplitView({
   }, []);
 
   return (
-    <div className="flex h-full flex-col md:flex-row">
+    <div className="flex h-full w-full flex-col md:flex-row">
       <section
         onKeyDownCapture={handleListKeyDown}
         onPointerDownCapture={handleListPointerDown}
         className="md:w-[360px] md:flex-shrink-0 border-b md:border-b-0 md:border-r h-1/2 md:h-full min-h-0"
       >
-        <div className="h-full min-h-0 w-full">
+        <div className="h-full min-h-0 w-full border border-black">
           <EmailList
             emails={emails}
             selectedIndex={resolvedSelectedIndex}
@@ -238,17 +238,16 @@ export function EmailSplitView({
         className="flex-1 min-w-0 h-1/2 md:h-full min-h-0 focus-ring"
       >
         {threadEmails && threadEmails.length > 1 ? (
-          <ThreadView
-            emails={threadEmails}
-            subject={email?.subject ?? null}
-          />
+          <ThreadView emails={threadEmails} subject={email?.subject ?? null} />
         ) : email ? (
           <EmailView email={email} />
         ) : (
           <div className="empty-state">
             <div className="text-center space-y-2">
               <p className="text-body text-muted">Select an email to preview</p>
-              <p className="text-caption">Use left/right arrows to move focus.</p>
+              <p className="text-caption">
+                Use left/right arrows to move focus.
+              </p>
             </div>
           </div>
         )}

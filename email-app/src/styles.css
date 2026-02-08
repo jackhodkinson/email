@@ -198,12 +198,9 @@ code {
 
   /* ── Focus ring (shared) ───────────────────────────────── */
   .focus-ring {
-    &:focus-visible {
-      outline: none;
-      box-shadow: inset 0 0 0 2px oklch(from var(--primary) l c h / 0.4);
-    }
-    &:focus-within {
-      box-shadow: inset 0 0 0 2px oklch(from var(--primary) l c h / 0.4);
+    &:focus, &:focus-visible, &:focus-within {
+      outline: 2px solid oklch(from var(--primary) l c h / 0.4);
+      outline-offset: -2px;
     }
   }
 

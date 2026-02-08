@@ -127,7 +127,7 @@ function InboxPage() {
         </span>
       </header>
 
-      <main className="flex-1 min-h-0 overflow-hidden">
+      <main className="flex flex-1 min-h-0">
         <EmailSplitView
           emails={threads}
           onSelectEmail={handleSelectEmail}

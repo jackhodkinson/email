@@ -3,10 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "vite dev --port 3001",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:setup-sidecar": "bash scripts/copy-bun-sidecar.sh",
+    "serve": "bun run server.ts"
   },
   "dependencies": {
     "@tanstack/react-devtools": "^0.7.0",
@@ -30,6 +34,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/devtools-vite": "^0.3.11",
+    "@tauri-apps/cli": "^2",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",
     "@types/dompurify": "^3.2.0",
