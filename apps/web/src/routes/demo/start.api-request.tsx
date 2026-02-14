@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 
 import { createFileRoute } from '@tanstack/react-router'
-import './start.css'
-
 function getNames() {
   return fetch('/demo/api/names').then((res) => res.json() as Promise<string[]>)
 }

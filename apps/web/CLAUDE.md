@@ -103,6 +103,46 @@ API routes are defined with `.ts` files (not `.tsx`) in the routes directory:
 - `src/router.tsx` - Creates router instance with route tree
 - `src/routes/__root.tsx` - Defines the HTML shell and root layout
 
+## Styling Rules
+
+All styles are centralized in `src/styles.css`. Follow these rules strictly:
+
+### Single stylesheet — no exceptions
+
+- **`src/styles.css` is the only CSS file in the project.** Do not create new `.css` files anywhere (not per-route, not per-component, not in subdirectories).
+- All CSS custom properties, `@theme` mappings, `@layer base` resets, and `@layer components` classes live in `src/styles.css`.
+- It is loaded once via `__root.tsx` and applies globally.
+
+### What goes in `styles.css`
+
+- Design tokens / CSS custom properties (`:root`, `.dark`)
+- `@theme inline` mappings to Tailwind
+- `@layer base` resets and defaults
+- `@layer components` classes for **reusable patterns used in 3+ places** with semantic meaning (e.g. `.email-item`, `.btn-icon`, `.thread-msg`)
+- Animation `@keyframes`
+
+### What stays as inline Tailwind utilities in components
+
+- One-off layout and spacing (`flex`, `gap-2`, `p-4`, `grid`)
+- Responsive variants (`md:flex`, `lg:grid-cols-3`)
+- State variants (`hover:bg-muted`, `focus:ring-2`, `disabled:opacity-50`)
+- Conditional classes via `cn()` from `src/lib/utils.ts`
+
+### Do NOT
+
+- Create separate `.css` files per route or component
+- Use `@apply` in `styles.css` to replicate what inline Tailwind utilities already do well
+- Import CSS files in route/component files (only `__root.tsx` imports `styles.css`)
+- Use inline `style={}` attributes except for truly dynamic values (e.g. computed positions)
+
+### When to extract to `@layer components`
+
+Extract a new class in `styles.css` when a Tailwind pattern is:
+1. Used in **3 or more** places, AND
+2. Has **semantic meaning** (e.g. `.attachment-card`, not `.flex-col-gap-2`)
+
+Follow the existing naming convention: BEM-like with double-dash modifiers (`.email-item--unread`, `.thread-msg__header--expanded`).
+
 ## React Performance Best Practices
 
 Follow these patterns to avoid unnecessary re-renders and maintain performance:
