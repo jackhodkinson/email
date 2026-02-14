@@ -284,7 +284,29 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
     if (!isReady) return { threads: [], accountId: null };
 
     const db = core.getDb();
-    const maxResults = Math.max((data.limit || 50) * 4, 100);
+    const limit = data.limit || 50;
+
+    // Parse Gmail-style query (from:, to:, is:unread, etc.)
+    const parsed = core.parseGmailQuery(data.query);
+
+    // If the query has structured operators that can run locally, use queryThreads
+    if (parsed.canRunLocally && parsed.whereClauses.length > 0) {
+      const rows = core.queryThreads(db, {
+        maxResults: limit,
+        extraWhere: {
+          clauses: parsed.whereClauses,
+          params: parsed.params,
+        },
+      });
+
+      return {
+        threads: rows.map((r) => toThreadSummary(r.latest, r.count)),
+        accountId: DEFAULT_ACCOUNT_ID,
+      };
+    }
+
+    // Fall back to FTS5 full-text search for plain text queries
+    const maxResults = Math.max(limit * 4, 100);
     const hits = core.searchMessages(db, { query: data.query, maxResults });
 
     const seenThreadIds = new Set<string>();
@@ -299,7 +321,7 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
           getThreadMessageCount(core, hit.message.threadId),
         ),
       );
-      if (threads.length >= (data.limit || 50)) break;
+      if (threads.length >= limit) break;
     }
 
     return {

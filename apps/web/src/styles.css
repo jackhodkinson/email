@@ -163,7 +163,7 @@ code {
     @apply h-full overflow-hidden;
   }
   body {
-    @apply bg-background text-foreground h-full overflow-hidden flex flex-col;
+    @apply bg-background text-foreground h-full overflow-hidden;
   }
 }
 
@@ -635,5 +635,14 @@ code {
 
   .api-page .content li span {
     font-size: 1.2rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

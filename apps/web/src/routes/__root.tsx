@@ -4,7 +4,8 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HotkeysProvider } from '@tanstack/react-hotkeys'
 import { hotkeysDevtoolsPlugin } from '@tanstack/react-hotkeys-devtools'
 
-import Header from '../components/Header'
+import { AppSidebar } from '../components/app-sidebar'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar'
 
 import appCss from '../styles.css?url'
 
@@ -54,10 +55,17 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <HotkeysProvider>
-          <Header />
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {children}
-          </div>
+          <SidebarProvider className="h-full min-h-0">
+            <AppSidebar />
+            <SidebarInset className="flex flex-col overflow-hidden">
+              <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+                <SidebarTrigger className="-ml-1" />
+              </header>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {children}
+              </div>
+            </SidebarInset>
+          </SidebarProvider>
           <TanStackDevtools
             config={{
               position: 'bottom-right',

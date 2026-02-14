@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   getThreadedInboxEmails,
@@ -36,17 +42,110 @@ export const Route = createFileRoute("/")({
   component: InboxPage,
 });
 
+// ─── Search input (isolated state — keystrokes never re-render the page) ─────
+
+interface SearchBoxHandle {
+  focus(): void;
+}
+
+interface SearchBoxProps {
+  query: string | undefined;
+  threadsOnly: boolean;
+}
+
+const SearchBox = memo(function SearchBox({
+  ref,
+  query,
+  threadsOnly,
+}: SearchBoxProps & { ref?: React.Ref<SearchBoxHandle> }) {
+  const navigate = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const lastNavigatedRef = useRef<string | undefined>(undefined);
+
+  // Clear draft when the URL catches up to what we last navigated to
+  if (draft !== null && query === lastNavigatedRef.current) {
+    setDraft(null);
+  }
+
+  const value = draft ?? query ?? "";
+
+  useImperativeHandle(ref, () => ({
+    focus() {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    },
+  }));
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value;
+      setDraft(v);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const trimmed = v.trim() || undefined;
+        lastNavigatedRef.current = trimmed;
+        navigate({
+          to: "/",
+          search: { q: trimmed, threads: threadsOnly || undefined },
+        });
+      }, 300);
+    },
+    [navigate, threadsOnly],
+  );
+
+  const handleClear = useCallback(() => {
+    setDraft(null);
+    lastNavigatedRef.current = undefined;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    navigate({
+      to: "/",
+      search: { q: undefined, threads: threadsOnly || undefined },
+    });
+  }, [navigate, threadsOnly]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleClear();
+        inputRef.current?.blur();
+      }
+    },
+    [handleClear],
+  );
+
+  return (
+    <div className="relative flex-1 max-w-md">
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      <input
+        ref={inputRef}
+        type="text"
+        placeholder="Search emails..."
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        className="search-input"
+      />
+      {value && (
+        <button
+          onClick={handleClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
+        >
+          <X className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      )}
+    </div>
+  );
+});
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
 function InboxPage() {
   const { threads, accountId, query, threadsOnly } = Route.useLoaderData();
   const navigate = useNavigate();
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [searchValue, setSearchValue] = useState(query ?? "");
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  // Sync local state when URL query changes
-  useEffect(() => {
-    setSearchValue(query ?? "");
-  }, [query]);
+  const searchBoxRef = useRef<SearchBoxHandle>(null);
 
   const handleSelectEmail = useCallback(
     (id: string) => {
@@ -59,32 +158,6 @@ function InboxPage() {
     [navigate, query, threadsOnly],
   );
 
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setSearchValue(value);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        navigate({
-          to: "/",
-          search: {
-            q: value.trim() || undefined,
-            threads: threadsOnly || undefined,
-          },
-        });
-      }, 300);
-    },
-    [navigate, threadsOnly],
-  );
-
-  const handleSearchClear = useCallback(() => {
-    setSearchValue("");
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    navigate({
-      to: "/",
-      search: { q: undefined, threads: threadsOnly || undefined },
-    });
-  }, [navigate, threadsOnly]);
-
   const handleToggleThreadsOnly = useCallback(() => {
     const nextThreads = !threadsOnly || undefined;
     navigate({
@@ -93,21 +166,8 @@ function InboxPage() {
     });
   }, [navigate, threadsOnly, query]);
 
-  const handleSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        handleSearchClear();
-        // Return focus to the email list
-        searchInputRef.current?.blur();
-      }
-    },
-    [handleSearchClear],
-  );
-
   const focusSearch = useCallback(() => {
-    searchInputRef.current?.focus();
-    searchInputRef.current?.select();
+    searchBoxRef.current?.focus();
   }, []);
 
   if (!accountId) {
@@ -120,26 +180,7 @@ function InboxPage() {
         <h1 className="page-header__title shrink-0">
           {query ? "Search" : "Inbox"}
         </h1>
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search emails..."
-            value={searchValue}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="search-input"
-          />
-          {searchValue && (
-            <button
-              onClick={handleSearchClear}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
-            >
-              <X className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </div>
+        <SearchBox ref={searchBoxRef} query={query} threadsOnly={threadsOnly} />
         <span className="page-header__count shrink-0">
           {query
             ? `${threads.length} ${threads.length === 1 ? "result" : "results"}`
