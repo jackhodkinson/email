@@ -1,14 +1,20 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
+import { MessagesSquare, RefreshCw } from "lucide-react";
 import { syncAccount } from "../server/functions";
 import { Button } from "./ui/button";
 
 interface EmailListToolbarProps {
   accountId: string;
+  threadsOnly: boolean;
+  onToggleThreadsOnly: () => void;
 }
 
-export function EmailListToolbar({ accountId }: EmailListToolbarProps) {
+export function EmailListToolbar({
+  accountId,
+  threadsOnly,
+  onToggleThreadsOnly,
+}: EmailListToolbarProps) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
 
@@ -23,7 +29,17 @@ export function EmailListToolbar({ accountId }: EmailListToolbarProps) {
   }, [accountId, router]);
 
   return (
-    <div className="flex items-center justify-end gap-1 px-2 py-1.5 border-b border-border flex-shrink-0">
+    <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-b border-border flex-shrink-0">
+      <Button
+        variant={threadsOnly ? "secondary" : "ghost"}
+        size="icon-sm"
+        aria-label="Filter by threads"
+        aria-pressed={threadsOnly}
+        onClick={onToggleThreadsOnly}
+        title="Show threads only"
+      >
+        <MessagesSquare />
+      </Button>
       <Button
         variant="ghost"
         size="icon-sm"

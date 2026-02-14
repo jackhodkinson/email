@@ -39,7 +39,7 @@ function NotFound() {
     <div className="empty-state">
       <h1 className="empty-state__title">Page not found</h1>
       <p className="empty-state__text">The page you're looking for doesn't exist.</p>
-      <Link to="/" search={{ q: undefined }} className="link-primary">
+      <Link to="/" search={{ q: undefined, threads: undefined }} className="link-primary">
         Back to Inbox
       </Link>
     </div>

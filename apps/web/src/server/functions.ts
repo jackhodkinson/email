@@ -252,7 +252,10 @@ export const getAttachments = createServerFn({ method: "GET" })
   });
 
 export const getThreadedInboxEmails = createServerFn({ method: "GET" })
-  .inputValidator((data: { accountId?: string; limit?: number }) => data)
+  .inputValidator(
+    (data: { accountId?: string; limit?: number; threadsOnly?: boolean }) =>
+      data,
+  )
   .handler(async ({ data }) => {
     const core = await getCore();
     const isReady = await ensureSynced(core);
@@ -262,6 +265,7 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
     const rows = core.queryThreads(db, {
       labelFilter: "INBOX",
       maxResults: data.limit || 50,
+      ...(data.threadsOnly ? { minThreadCount: 2 } : {}),
     });
 
     return {

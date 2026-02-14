@@ -13,12 +13,16 @@ import { Search, X } from "lucide-react";
 export const Route = createFileRoute("/email/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === "string" ? search.q : undefined,
+    threads:
+      search.threads === true || search.threads === "true" ? true : undefined,
   }),
-  loaderDeps: ({ search }) => ({ q: search.q }),
+  loaderDeps: ({ search }) => ({ q: search.q, threads: search.threads }),
   loader: async ({ params, deps }) => {
     const inboxPromise = deps.q
       ? searchThreadedInboxEmails({ data: { query: deps.q } })
-      : getThreadedInboxEmails({ data: {} });
+      : getThreadedInboxEmails({
+          data: { threadsOnly: !!deps.threads },
+        });
 
     const [email, inbox] = await Promise.all([
       getEmailById({ data: { emailId: params.id } }),
@@ -36,6 +40,7 @@ export const Route = createFileRoute("/email/$id")({
       threadEmails,
       accountId: inbox.accountId,
       query: deps.q,
+      threadsOnly: !!deps.threads,
     };
   },
   component: EmailDetailPage,
@@ -43,7 +48,7 @@ export const Route = createFileRoute("/email/$id")({
 });
 
 function EmailDetailPage() {
-  const { email, threads, threadEmails, accountId, query } =
+  const { email, threads, threadEmails, accountId, query, threadsOnly } =
     Route.useLoaderData();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -59,10 +64,10 @@ function EmailDetailPage() {
       navigate({
         to: "/email/$id",
         params: { id },
-        search: { q: query },
+        search: { q: query, threads: threadsOnly || undefined },
       });
     },
-    [navigate, query],
+    [navigate, query, threadsOnly],
   );
 
   const handleSearchChange = useCallback(
@@ -72,18 +77,33 @@ function EmailDetailPage() {
       debounceRef.current = setTimeout(() => {
         navigate({
           to: "/",
-          search: { q: value.trim() || undefined },
+          search: {
+            q: value.trim() || undefined,
+            threads: threadsOnly || undefined,
+          },
         });
       }, 300);
     },
-    [navigate],
+    [navigate, threadsOnly],
   );
 
   const handleSearchClear = useCallback(() => {
     setSearchValue("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    navigate({ to: "/", search: { q: undefined } });
-  }, [navigate]);
+    navigate({
+      to: "/",
+      search: { q: undefined, threads: threadsOnly || undefined },
+    });
+  }, [navigate, threadsOnly]);
+
+  const handleToggleThreadsOnly = useCallback(() => {
+    const nextThreads = !threadsOnly || undefined;
+    navigate({
+      to: "/email/$id",
+      params: { id: email?.id ?? "" },
+      search: { q: query, threads: nextThreads },
+    });
+  }, [navigate, email?.id, threadsOnly, query]);
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -148,6 +168,8 @@ function EmailDetailPage() {
           focusSearch={focusSearch}
           searchParams={query ? { q: query } : undefined}
           accountId={accountId}
+          threadsOnly={threadsOnly}
+          onToggleThreadsOnly={handleToggleThreadsOnly}
         />
       </main>
     </div>
@@ -163,7 +185,7 @@ function NotFound() {
       </p>
       <Link
         to="/"
-        search={{ q: undefined }}
+        search={{ q: undefined, threads: undefined }}
         className="link-primary inline-flex items-center gap-2"
       >
         <svg

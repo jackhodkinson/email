@@ -44,6 +44,7 @@ export interface ThreadQueryOpts {
   maxResults?: number;
   query?: string;
   extraWhere?: { clauses: string[]; params: any[] };
+  minThreadCount?: number;
 }
 
 export interface ThreadResult {
@@ -452,6 +453,12 @@ export function queryThreads(db: Database, opts: ThreadQueryOpts): ThreadResult[
 
   const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
   const limit = opts.maxResults ?? 20;
+
+  const outerConditions = ["rn = 1"];
+  if (opts.minThreadCount && opts.minThreadCount > 1) {
+    outerConditions.push("thread_count >= ?");
+    params.push(opts.minThreadCount);
+  }
   params.push(limit);
 
   const sql = `
@@ -462,7 +469,7 @@ export function queryThreads(db: Database, opts: ThreadQueryOpts): ThreadResult[
       FROM messages m
       ${where}
     )
-    SELECT * FROM ranked WHERE rn = 1
+    SELECT * FROM ranked WHERE ${outerConditions.join(" AND ")}
     ORDER BY internal_date DESC
     LIMIT ?
   `;

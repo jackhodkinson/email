@@ -54,6 +54,8 @@ interface EmailSplitViewProps {
   focusSearch?: () => void;
   searchParams?: Record<string, unknown>;
   accountId: string;
+  threadsOnly: boolean;
+  onToggleThreadsOnly: () => void;
 }
 
 function isFocusableElement(el: HTMLElement | null): boolean {
@@ -87,6 +89,8 @@ export function EmailSplitView({
   focusSearch = noop,
   searchParams,
   accountId,
+  threadsOnly,
+  onToggleThreadsOnly,
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -255,7 +259,11 @@ export function EmailSplitView({
         className="md:w-[360px] md:flex-shrink-0 h-1/2 md:h-full min-h-0"
       >
         <div className="h-full min-h-0 w-full border border-border rounded-md overflow-hidden flex flex-col">
-          <EmailListToolbar accountId={accountId} />
+          <EmailListToolbar
+            accountId={accountId}
+            threadsOnly={threadsOnly}
+            onToggleThreadsOnly={onToggleThreadsOnly}
+          />
           <EmailList
             emails={emails}
             selectedIndex={resolvedSelectedIndex}

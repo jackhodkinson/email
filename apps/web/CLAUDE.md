@@ -143,9 +143,52 @@ Extract a new class in `styles.css` when a Tailwind pattern is:
 
 Follow the existing naming convention: BEM-like with double-dash modifiers (`.email-item--unread`, `.thread-msg__header--expanded`).
 
-## React Performance Best Practices
+## Placement Rules
 
-Follow these patterns to avoid unnecessary re-renders and maintain performance:
+- Keep route files thin: only routing config (loader, validateSearch, loaderDeps) and a page component that composes feature components.
+- Put server functions in `src/server/functions.ts` (or split by domain if it grows).
+- Feature UI lives in `src/components/`. Extract when a component exceeds ~200 lines.
+
+## React Patterns
+
+### Avoid syncing state with useEffect
+
+**Do not use `useEffect` to sync local state from props or other state.** This creates two sources of truth and causes subtle bugs (stale values, lost keystrokes, sync loops).
+
+Bad (creates sync bugs):
+
+```tsx
+const [local, setLocal] = useState(prop)
+useEffect(() => setLocal(prop), [prop]) // DON'T DO THIS
+```
+
+Good (single source of truth):
+
+```tsx
+const [draft, setDraft] = useState<string | null>(null)
+const value = draft ?? prop // prop is the source of truth
+```
+
+Alternatives by use case:
+- **Derived values**: Use `useMemo` to compute from the source of truth, don't copy into separate state.
+- **Debouncing**: Debounce the callback, not the state. Use `useDebouncedCallback` or throttle the setter directly.
+- **Expensive renders**: Use `useDeferredValue` to let React deprioritize heavy re-renders while keeping input responsive.
+- **Prop-driven initial values**: Use a `key` to reset the component, or make it fully controlled.
+- **Input drafts**: Keep draft as `string | null`, render `value={draft ?? committed}`, clear draft on commit.
+
+### Search inputs with router params
+
+Treat the URL as committed state and keep a local draft only while typing. Render `value = draft ?? search ?? ''`. Debounced navigation should read from the draft; clear the draft only when search matches the last debounced value (or on blur/Enter). **Symptom to watch for**: input loses characters when data loads → you're overwriting local draft with a stale URL value.
+
+### TanStack Router search params
+
+Search params are JSON-first. Define/validate search params with `validateSearch`, read them via `Route.useSearch()` or `Route.useLoaderData()`, and use `loaderDeps` to wire search params into loaders. Passing strings like `"true"` will serialize as `%22true%22`.
+
+### Polling
+
+Use TanStack Query's `refetchInterval` option instead of manual `setInterval` with `useEffect`.
+
+## React Performance Best Practices
 
 ### Memoization
 
@@ -160,14 +203,7 @@ Follow these patterns to avoid unnecessary re-renders and maintain performance:
 
 2. **Use `useMemo` instead of `useEffect` + `useState` for derived data** - Avoids double-render (empty state → computed state):
    ```tsx
-   // Prefer this:
    const processedData = useMemo(() => computeExpensive(input), [input]);
-
-   // Over this:
-   const [processedData, setProcessedData] = useState(null);
-   useEffect(() => {
-     setProcessedData(computeExpensive(input));
-   }, [input]);
    ```
 
 3. **Use `useCallback` for event handlers passed to memoized children**:
@@ -179,35 +215,27 @@ Follow these patterns to avoid unnecessary re-renders and maintain performance:
 
 - Avoid inline arrow functions in JSX for memoized components
 - Define handlers with `useCallback` when passed as props to child components
-- For simple local state toggles, still prefer `useCallback` for consistency
 
 ### Lists and Keys
 
 - Always use stable IDs for `key` props, never array indices
-- Consider virtualization (e.g., `react-virtual`) for lists with 500+ items
+- For large lists (500+ items), virtualize with `@tanstack/react-virtual` so only visible items render
+- Keep list item props stable; avoid allocating new arrays/objects for every item on each filter change
+- Normalize expensive search inputs once (e.g. `trim().toLowerCase()`) and precompute per-item lowercase fields during data transform
 
 ### Expensive Operations
 
 - Move heavy computations (DOM parsing, data transformation) to server-side when possible
 - For client-side heavy work, consider Web Workers for files >1MB
-- Optimize binary operations (e.g., base64 decoding) by writing directly to typed arrays:
-  ```tsx
-  // Prefer this:
-  const byteArray = new Uint8Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteArray[i] = byteCharacters.charCodeAt(i);
-  }
-
-  // Over this (creates intermediate array):
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  ```
+- Optimize binary operations (e.g., base64 decoding) by writing directly to typed arrays
 
 ### Component Structure
 
 - Keep components focused and single-purpose
 - Extract pure utility functions outside components (e.g., `formatDate`, `formatSender`)
 - Use `forwardRef` for components that need parent-controlled focus/scroll
+
+## Design
+
+- When choosing colors always support both dark and light mode.
+- Use shadcn/ui components and Tailwind's default scale values—avoid arbitrary values like `text-[14px]` or `p-[20px]`. Use CSS variables from `styles.css` for colors.

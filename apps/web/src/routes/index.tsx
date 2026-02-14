@@ -11,8 +11,10 @@ import { Search, X } from "lucide-react";
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === "string" ? search.q : undefined,
+    threads:
+      search.threads === true || search.threads === "true" ? true : undefined,
   }),
-  loaderDeps: ({ search }) => ({ q: search.q }),
+  loaderDeps: ({ search }) => ({ q: search.q, threads: search.threads }),
   loader: async ({ deps }) => {
     if (deps.q) {
       return {
@@ -20,18 +22,22 @@ export const Route = createFileRoute("/")({
           data: { query: deps.q },
         })),
         query: deps.q,
+        threadsOnly: !!deps.threads,
       };
     }
     return {
-      ...(await getThreadedInboxEmails({ data: {} })),
+      ...(await getThreadedInboxEmails({
+        data: { threadsOnly: !!deps.threads },
+      })),
       query: undefined,
+      threadsOnly: !!deps.threads,
     };
   },
   component: InboxPage,
 });
 
 function InboxPage() {
-  const { threads, accountId, query } = Route.useLoaderData();
+  const { threads, accountId, query, threadsOnly } = Route.useLoaderData();
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchValue, setSearchValue] = useState(query ?? "");
@@ -47,10 +53,10 @@ function InboxPage() {
       navigate({
         to: "/email/$id",
         params: { id },
-        search: { q: query },
+        search: { q: query, threads: threadsOnly || undefined },
       });
     },
-    [navigate, query],
+    [navigate, query, threadsOnly],
   );
 
   const handleSearchChange = useCallback(
@@ -60,18 +66,32 @@ function InboxPage() {
       debounceRef.current = setTimeout(() => {
         navigate({
           to: "/",
-          search: { q: value.trim() || undefined },
+          search: {
+            q: value.trim() || undefined,
+            threads: threadsOnly || undefined,
+          },
         });
       }, 300);
     },
-    [navigate],
+    [navigate, threadsOnly],
   );
 
   const handleSearchClear = useCallback(() => {
     setSearchValue("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    navigate({ to: "/", search: { q: undefined } });
-  }, [navigate]);
+    navigate({
+      to: "/",
+      search: { q: undefined, threads: threadsOnly || undefined },
+    });
+  }, [navigate, threadsOnly]);
+
+  const handleToggleThreadsOnly = useCallback(() => {
+    const nextThreads = !threadsOnly || undefined;
+    navigate({
+      to: "/",
+      search: { q: query, threads: nextThreads },
+    });
+  }, [navigate, threadsOnly, query]);
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -134,6 +154,8 @@ function InboxPage() {
           focusSearch={focusSearch}
           searchParams={query ? { q: query } : undefined}
           accountId={accountId}
+          threadsOnly={threadsOnly}
+          onToggleThreadsOnly={handleToggleThreadsOnly}
         />
       </main>
     </div>
