@@ -1,0 +1,26 @@
+{
+  "name": "@jack/mail-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./db": "./src/db.ts",
+    "./gmail": "./src/gmail.ts",
+    "./query": "./src/query.ts",
+    "./sync": "./src/sync.ts"
+  },
+  "dependencies": {
+    "googleapis": "^171.4.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

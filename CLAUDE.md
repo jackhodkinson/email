@@ -4,101 +4,72 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-This is a TanStack Start project using Bun as the package manager and runtime.
+This is a Bun workspace monorepo for email-related applications and packages.
+
+## Monorepo Structure
+
+```
+email/
+├── apps/
+│   ├── cli/              # cmail — CLI Gmail client
+│   │   ├── index.ts      # Entry point (bin: cmail)
+│   │   ├── lib/          # CLI-specific modules + re-exports from core
+│   │   └── package.json
+│   └── web/              # email-app — TanStack Start web/desktop client
+│       ├── src/
+│       │   ├── routes/        # File-based routing
+│       │   ├── components/    # Shared React components
+│       │   ├── lib/           # Utilities, hooks, commands
+│       │   └── server/        # Server functions
+│       ├── src-tauri/         # Tauri desktop wrapper
+│       ├── server.ts
+│       ├── vite.config.ts
+│       └── package.json
+├── packages/
+│   └── core/             # @jack/mail-core — shared core package
+│       ├── src/
+│       │   ├── index.ts       # Main exports
+│       │   ├── auth.ts        # Gmail OAuth
+│       │   ├── db.ts          # SQLite database
+│       │   ├── gmail.ts       # Gmail API client
+│       │   ├── query.ts       # Query utilities
+│       │   └── sync.ts        # Email sync logic
+│       └── package.json
+├── package.json           # Workspace root
+└── bun.lock
+```
 
 ## Tech Stack
 
-- **Framework**: TanStack Start (full-stack React framework)
-- **Router**: TanStack Router (file-based routing)
-- **Runtime/Package Manager**: Bun
-- **Build Tool**: Vite
+- **Runtime/Package Manager**: Bun (workspace monorepo)
+- **Shared Core**: `@jack/mail-core` — auth, db, gmail, query, sync
+- **Web App**: TanStack Start, TanStack Router, React 19, Vite, Tailwind CSS
+- **CLI**: Bun CLI with `@jack/mail-core` re-exports
+- **Desktop**: Tauri (wraps web app)
 - **Language**: TypeScript
-- **React**: v19
-
-## Project Structure
-
-```
-email-app/
-├── src/
-│   ├── routes/           # File-based routing
-│   │   ├── __root.tsx    # Root layout (html, head, body shell)
-│   │   ├── index.tsx     # Home page (/)
-│   │   └── demo/         # Demo routes
-│   ├── components/       # Shared components
-│   ├── data/             # Data files
-│   ├── router.tsx        # Router configuration
-│   └── styles.css        # Global styles
-├── public/               # Static assets
-├── vite.config.ts        # Vite + TanStack Start plugin config
-├── tsconfig.json
-└── package.json
-```
 
 ## Development Commands
 
 ```bash
-cd email-app
+# Install all workspace dependencies
+bun install
 
-# Start dev server (port 3000)
-bun --bun run dev
+# Web app
+cd apps/web
+bun --bun run dev          # Dev server on port 3001
+bun --bun run build        # Production build
+bun --bun run test         # Run tests
 
-# Build for production
-bun --bun run build
+# CLI
+cd apps/cli
+bun run index.ts --help    # Run CLI
 
-# Preview production build
-bun --bun run preview
-
-# Run tests
-bun --bun run test
+# Core package
+cd packages/core
+bunx tsc --noEmit          # Type-check
 ```
 
-Note: The `--bun` flag ensures Bun is used as the runtime, not just the package manager.
+## Workspace Dependencies
 
-## TanStack Start Conventions
-
-### File-Based Routing
-
-Routes are defined in `src/routes/`. File naming conventions:
-- `index.tsx` - Index route for a directory
-- `__root.tsx` - Root layout component
-- `[param].tsx` - Dynamic route parameter
-- `$.tsx` - Splat/catch-all route
-- `_layout.tsx` - Layout route (prefix with underscore)
-
-### Route Definition
-
-Routes are created using `createFileRoute`:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/path')({
-  component: MyComponent,
-  loader: async () => { /* fetch data */ },
-})
-```
-
-### Server Functions
-
-Server functions allow type-safe RPC between client and server:
-
-```tsx
-import { createServerFn } from '@tanstack/react-start/server'
-
-const myServerFn = createServerFn({ method: 'GET' })
-  .handler(async () => {
-    // Runs on server
-    return { data: 'from server' }
-  })
-```
-
-### API Routes
-
-API routes are defined with `.ts` files (not `.tsx`) in the routes directory:
-- `src/routes/demo/api.names.ts` - Creates `/demo/api/names` endpoint
-
-## Key Configuration Files
-
-- `vite.config.ts` - Uses `@tanstack/react-start/plugin/vite` for SSR support
-- `src/router.tsx` - Creates router instance with route tree
-- `src/routes/__root.tsx` - Defines the HTML shell and root layout
+- Both `apps/cli` and `apps/web` depend on `@jack/mail-core` via `"workspace:*"`
+- Core package exports sub-paths: `@jack/mail-core/auth`, `@jack/mail-core/db`, etc.

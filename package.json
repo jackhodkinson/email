@@ -1,0 +1,5 @@
+{
+  "name": "email-monorepo",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"]
+}

@@ -2,6 +2,8 @@
 
 Technical architecture for the email client MVP.
 
+> Update: the app now uses the shared `@jack/mail-core` package (same core as `cmail`) and the shared SQLite mailbox at `~/.cache/cmail/mail.sqlite`.
+
 ## Tech Stack
 
 | Layer | Technology | Notes |
