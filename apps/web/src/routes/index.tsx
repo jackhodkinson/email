@@ -61,11 +61,11 @@ const SearchBox = memo(function SearchBox({
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const lastNavigatedRef = useRef<string | undefined>(undefined);
+  const prevQueryRef = useRef(query);
 
-  // Clear draft when the URL catches up to what we last navigated to
-  if (draft !== null && query === lastNavigatedRef.current) {
+  // When the URL query changes (loader resolved, back/forward nav), sync up
+  if (query !== prevQueryRef.current) {
+    prevQueryRef.current = query;
     setDraft(null);
   }
 
@@ -78,27 +78,26 @@ const SearchBox = memo(function SearchBox({
     },
   }));
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = e.target.value;
-      setDraft(v);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        const trimmed = v.trim() || undefined;
-        lastNavigatedRef.current = trimmed;
-        navigate({
-          to: "/",
-          search: { q: trimmed, threads: threadsOnly || undefined },
-        });
-      }, 300);
+  const submitSearch = useCallback(
+    (searchValue: string) => {
+      const trimmed = searchValue.trim() || undefined;
+      navigate({
+        to: "/",
+        search: { q: trimmed, threads: threadsOnly || undefined },
+      });
     },
     [navigate, threadsOnly],
   );
 
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setDraft(e.target.value);
+    },
+    [],
+  );
+
   const handleClear = useCallback(() => {
     setDraft(null);
-    lastNavigatedRef.current = undefined;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     navigate({
       to: "/",
       search: { q: undefined, threads: threadsOnly || undefined },
@@ -106,14 +105,17 @@ const SearchBox = memo(function SearchBox({
   }, [navigate, threadsOnly]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitSearch(e.currentTarget.value);
+      } else if (e.key === "Escape") {
         e.preventDefault();
         handleClear();
         inputRef.current?.blur();
       }
     },
-    [handleClear],
+    [submitSearch, handleClear],
   );
 
   return (
