@@ -89,13 +89,14 @@ function EmailDetailPage() {
 
   const handleSelectEmail = useCallback(
     (id: string) => {
+      if (id === selectedId) return;
       navigate({
         to: "/email/$id",
         params: { id },
         search: { q: query, threads: threadsOnly || undefined, category },
       });
     },
-    [navigate, query, threadsOnly, category],
+    [navigate, selectedId, query, threadsOnly, category],
   );
 
   const handleToggleThreadsOnly = useCallback(() => {

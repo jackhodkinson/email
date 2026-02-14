@@ -25,6 +25,7 @@ export function createCommands(ctx: CommandContext): Record<string, Command> {
       execute: () => {
         if (ctx.emails.length === 0) return;
         const next = Math.min(ctx.selectedIndex + 1, ctx.emails.length - 1);
+        if (next === ctx.selectedIndex) return;
         ctx.setSelectedIndex(next);
       },
     },
@@ -36,6 +37,7 @@ export function createCommands(ctx: CommandContext): Record<string, Command> {
       execute: () => {
         if (ctx.emails.length === 0) return;
         const prev = Math.max(ctx.selectedIndex - 1, 0);
+        if (prev === ctx.selectedIndex) return;
         ctx.setSelectedIndex(prev);
       },
     },
