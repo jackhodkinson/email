@@ -5,7 +5,7 @@ export default function Header() {
     <header className="app-header">
       <nav className="app-header__nav">
         <div className="app-header__link">
-          <Link to="/" search={{ q: undefined, threads: undefined }}>Home</Link>
+          <Link to="/" search={{ q: undefined, threads: undefined, category: undefined }}>Home</Link>
         </div>
 
         <div className="app-header__link">

@@ -178,6 +178,38 @@ export const syncAccount = createServerFn({ method: "POST" })
     };
   });
 
+export const getSidebarCounts = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const core = await getCore();
+    const isReady = await ensureSynced(core);
+    if (!isReady)
+      return {
+        inbox: 0,
+        primary: 0,
+        promotions: 0,
+        social: 0,
+        updates: 0,
+        forums: 0,
+        unread: 0,
+        starred: 0,
+      };
+
+    const db = core.getDb();
+    return {
+      inbox: core.countMessages(db, { labelFilter: "INBOX", unread: true }),
+      primary: core.countMessages(db, { labelFilter: "CATEGORY_PERSONAL" }),
+      promotions: core.countMessages(db, {
+        labelFilter: "CATEGORY_PROMOTIONS",
+      }),
+      social: core.countMessages(db, { labelFilter: "CATEGORY_SOCIAL" }),
+      updates: core.countMessages(db, { labelFilter: "CATEGORY_UPDATES" }),
+      forums: core.countMessages(db, { labelFilter: "CATEGORY_FORUMS" }),
+      unread: core.countMessages(db, { labelFilter: "INBOX", unread: true }),
+      starred: core.countMessages(db, { labelFilter: "INBOX", starred: true }),
+    };
+  },
+);
+
 export const getInboxEmails = createServerFn({ method: "GET" })
   .inputValidator((data: { accountId?: string; limit?: number }) => data)
   .handler(async ({ data }) => {
@@ -251,10 +283,26 @@ export const getAttachments = createServerFn({ method: "GET" })
     }));
   });
 
+const CATEGORY_LABELS: Record<string, string> = {
+  primary: "CATEGORY_PERSONAL",
+  promotions: "CATEGORY_PROMOTIONS",
+  social: "CATEGORY_SOCIAL",
+  updates: "CATEGORY_UPDATES",
+  forums: "CATEGORY_FORUMS",
+  unread: "INBOX",
+  starred: "INBOX",
+};
+
+export type CategoryKey = keyof typeof CATEGORY_LABELS;
+
 export const getThreadedInboxEmails = createServerFn({ method: "GET" })
   .inputValidator(
-    (data: { accountId?: string; limit?: number; threadsOnly?: boolean }) =>
-      data,
+    (data: {
+      accountId?: string;
+      limit?: number;
+      threadsOnly?: boolean;
+      category?: string;
+    }) => data,
   )
   .handler(async ({ data }) => {
     const core = await getCore();
@@ -262,10 +310,34 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
     if (!isReady) return { threads: [], accountId: null };
 
     const db = core.getDb();
+    const labelFilter =
+      data.category && data.category in CATEGORY_LABELS
+        ? CATEGORY_LABELS[data.category]
+        : "INBOX";
     const rows = core.queryThreads(db, {
-      labelFilter: "INBOX",
+      labelFilter,
       maxResults: data.limit || 50,
       ...(data.threadsOnly ? { minThreadCount: 2 } : {}),
+      ...(data.category === "unread"
+        ? {
+            extraWhere: {
+              clauses: [
+                "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'UNREAD')",
+              ],
+              params: [],
+            },
+          }
+        : {}),
+      ...(data.category === "starred"
+        ? {
+            extraWhere: {
+              clauses: [
+                "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'STARRED')",
+              ],
+              params: [],
+            },
+          }
+        : {}),
     });
 
     return {
@@ -359,7 +431,7 @@ export const getThreadEmails = createServerFn({ method: "GET" })
           LEFT JOIN message_labels ml ON ml.message_id = m.message_id
           WHERE m.thread_id = ?
           GROUP BY m.message_id
-          ORDER BY m.internal_date ASC
+          ORDER BY m.internal_date DESC
         `,
       )
       .all(data.threadId) as Array<{

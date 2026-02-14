@@ -1,7 +1,9 @@
 import { useCallback, useRef } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ThreadMessage } from "./thread-message";
+import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 
 interface ThreadEmail {
@@ -22,10 +24,10 @@ interface ThreadViewProps {
 }
 
 export function ThreadView({ emails, subject }: ThreadViewProps) {
-  // By default, expand only the most recent email (last in array since sorted ASC)
+  // By default, expand only the most recent email (first in array since sorted DESC)
   const expandedIds$ = useObservable<Set<string>>(() => {
     if (emails.length === 0) return new Set();
-    return new Set([emails[emails.length - 1].id]);
+    return new Set([emails[0].id]);
   });
 
   const expandedIds = useValue(expandedIds$);
@@ -83,40 +85,23 @@ export function ThreadView({ emails, subject }: ThreadViewProps) {
   }, []);
 
   const allExpanded = emails.length > 0 && expandedIds.size === emails.length;
-  const allCollapsed = expandedIds.size === 0;
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Thread subject and controls */}
-      <div className="panel-header panel-header--bordered space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="heading-page">
-            {subject || "(no subject)"}
-          </h1>
-          <span className="text-body text-muted whitespace-nowrap">
-            {emails.length} {emails.length === 1 ? "message" : "messages"}
-          </span>
-        </div>
-
+      <div className="flex items-center gap-2 px-4 py-2 border-b">
+        <h1 className="text-sm font-medium text-muted-foreground truncate flex-1">
+          {subject || "(no subject)"}
+        </h1>
         {emails.length > 1 && (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={expandAll}
-              disabled={allExpanded}
-              className="btn-secondary"
-            >
-              Expand all
-            </button>
-            <button
-              type="button"
-              onClick={collapseAll}
-              disabled={allCollapsed}
-              className="btn-secondary"
-            >
-              Collapse all
-            </button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={allExpanded ? collapseAll : expandAll}
+            title={allExpanded ? "Collapse all" : "Expand all"}
+          >
+            {allExpanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
+          </Button>
         )}
       </div>
 

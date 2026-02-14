@@ -2,10 +2,9 @@ import { useImperativeHandle, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { Search, X } from "lucide-react";
+import type { SearchBoxHandle } from "@/lib/search-context";
 
-export interface SearchBoxHandle {
-  focus(): void;
-}
+export type { SearchBoxHandle };
 
 interface SearchBoxProps {
   query: string | undefined;

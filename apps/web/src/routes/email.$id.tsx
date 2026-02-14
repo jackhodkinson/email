@@ -1,5 +1,5 @@
-import { useCallback, useRef } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import { createFileRoute, defer, Link, useNavigate } from "@tanstack/react-router";
 import {
   getEmailById,
   getThreadedInboxEmails,
@@ -8,7 +8,7 @@ import {
 } from "../server/functions";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
-import { SearchBox, type SearchBoxHandle } from "../components/search-box";
+import { useSearchBox } from "../lib/search-context";
 
 export const Route = createFileRoute("/email/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -24,26 +24,27 @@ export const Route = createFileRoute("/email/$id")({
     category: search.category,
   }),
   loader: async ({ params, deps }) => {
-    const inboxPromise = deps.q
+    const inbox = await (deps.q
       ? searchThreadedInboxEmails({ data: { query: deps.q } })
       : getThreadedInboxEmails({
           data: { threadsOnly: !!deps.threads, category: deps.category },
-        });
+        }));
 
-    const [email, inbox] = await Promise.all([
-      getEmailById({ data: { emailId: params.id } }),
-      inboxPromise,
-    ]);
-
-    // Load thread emails if this email belongs to a thread
-    const threadEmails = email?.threadId
-      ? await getThreadEmails({ data: { threadId: email.threadId } })
-      : null;
+    // Defer email detail — navigation completes immediately,
+    // the detail pane shows a loading state until this resolves.
+    const emailDetail = defer(
+      getEmailById({ data: { emailId: params.id } }).then(async (email) => {
+        const threadEmails = email?.threadId
+          ? await getThreadEmails({ data: { threadId: email.threadId } })
+          : null;
+        return { email, threadEmails };
+      }),
+    );
 
     return {
-      email,
+      selectedId: params.id,
       threads: inbox.threads,
-      threadEmails,
+      emailDetail,
       accountId: inbox.accountId,
       query: deps.q,
       threadsOnly: !!deps.threads,
@@ -54,11 +55,37 @@ export const Route = createFileRoute("/email/$id")({
   notFoundComponent: NotFound,
 });
 
+type EmailDetailResult = Awaited<ReturnType<typeof getEmailById>>;
+type ThreadEmailsResult = Awaited<ReturnType<typeof getThreadEmails>>;
+
 function EmailDetailPage() {
-  const { email, threads, threadEmails, accountId, query, threadsOnly, category } =
-    Route.useLoaderData();
+  const {
+    selectedId,
+    threads,
+    emailDetail,
+    accountId,
+    query,
+    threadsOnly,
+    category,
+  } = Route.useLoaderData();
   const navigate = useNavigate();
-  const searchBoxRef = useRef<SearchBoxHandle>(null);
+  const searchBoxRef = useSearchBox();
+
+  const [detail, setDetail] = useState<{
+    email: EmailDetailResult;
+    threadEmails: ThreadEmailsResult;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDetail(null);
+    emailDetail.then((result) => {
+      if (!cancelled) setDetail(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [emailDetail]);
 
   const handleSelectEmail = useCallback(
     (id: string) => {
@@ -75,14 +102,14 @@ function EmailDetailPage() {
     const nextThreads = !threadsOnly || undefined;
     navigate({
       to: "/email/$id",
-      params: { id: email?.id ?? "" },
+      params: { id: selectedId },
       search: { q: query, threads: nextThreads, category },
     });
-  }, [navigate, email?.id, threadsOnly, query, category]);
+  }, [navigate, selectedId, threadsOnly, query, category]);
 
   const focusSearch = useCallback(() => {
     searchBoxRef.current?.focus();
-  }, []);
+  }, [searchBoxRef]);
 
   if (!accountId) {
     return <NoAccount />;
@@ -90,24 +117,12 @@ function EmailDetailPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <header className="page-header flex items-center justify-between gap-4">
-        <h1 className="page-header__title shrink-0">
-          {query ? "Search" : "Inbox"}
-        </h1>
-        <SearchBox ref={searchBoxRef} query={query} threadsOnly={threadsOnly} />
-        <span className="page-header__count shrink-0">
-          {query
-            ? `${threads.length} ${threads.length === 1 ? "result" : "results"}`
-            : `${threads.length} ${threads.length === 1 ? "conversation" : "conversations"}`}
-        </span>
-      </header>
-
       <main className="flex-1 min-h-0 overflow-hidden">
         <EmailSplitView
           emails={threads}
-          selectedEmailId={email?.id ?? null}
-          email={email}
-          threadEmails={threadEmails}
+          selectedEmailId={selectedId}
+          email={detail?.email}
+          threadEmails={detail?.threadEmails}
           onSelectEmail={handleSelectEmail}
           focusSearch={focusSearch}
           searchParams={query ? { q: query } : undefined}

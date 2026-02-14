@@ -43,14 +43,17 @@ export const ThreadMessage = memo(function ThreadMessage({
       >
         <div className="flex items-center gap-3">
           {/* Avatar */}
-          <div className="avatar">
-            {senderInitial}
-          </div>
+          <div className="avatar">{senderInitial}</div>
 
           {/* Sender and snippet */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className={cn("text-body text-truncate", !email.isRead && "font-semibold")}>
+              <span
+                className={cn(
+                  "text-body text-truncate",
+                  !email.isRead && "font-semibold",
+                )}
+              >
                 {senderName}
               </span>
               <span className="text-caption whitespace-nowrap">
@@ -77,7 +80,7 @@ export const ThreadMessage = memo(function ThreadMessage({
             strokeLinejoin="round"
             className={cn(
               "flex-shrink-0 text-muted transition-transform",
-              isExpanded && "rotate-180"
+              isExpanded && "rotate-180",
             )}
           >
             <path d="m6 9 6 6 6-6" />

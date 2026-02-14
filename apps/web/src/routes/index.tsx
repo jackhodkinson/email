@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   getThreadedInboxEmails,
@@ -6,7 +6,7 @@ import {
 } from "../server/functions";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
-import { SearchBox, type SearchBoxHandle } from "../components/search-box";
+import { useSearchBox } from "../lib/search-context";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -48,7 +48,7 @@ function InboxPage() {
   const { threads, accountId, query, threadsOnly, category } =
     Route.useLoaderData();
   const navigate = useNavigate();
-  const searchBoxRef = useRef<SearchBoxHandle>(null);
+  const searchBoxRef = useSearchBox();
 
   const handleSelectEmail = useCallback(
     (id: string) => {
@@ -71,7 +71,7 @@ function InboxPage() {
 
   const focusSearch = useCallback(() => {
     searchBoxRef.current?.focus();
-  }, []);
+  }, [searchBoxRef]);
 
   if (!accountId) {
     return <NoAccount />;
@@ -79,22 +79,6 @@ function InboxPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <header className="page-header flex items-center justify-between gap-4">
-        <h1 className="page-header__title shrink-0">
-          {query
-            ? "Search"
-            : category
-              ? category.charAt(0).toUpperCase() + category.slice(1)
-              : "Inbox"}
-        </h1>
-        <SearchBox ref={searchBoxRef} query={query} threadsOnly={threadsOnly} />
-        <span className="page-header__count shrink-0">
-          {query
-            ? `${threads.length} ${threads.length === 1 ? "result" : "results"}`
-            : `${threads.length} ${threads.length === 1 ? "conversation" : "conversations"}`}
-        </span>
-      </header>
-
       <main className="flex flex-1 min-h-0">
         <EmailSplitView
           emails={threads}
