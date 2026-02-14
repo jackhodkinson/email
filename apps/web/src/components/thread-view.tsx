@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef } from "react";
+import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { ThreadMessage } from "./thread-message";
 import { ScrollArea } from "./ui/scroll-area";
@@ -22,18 +23,20 @@ interface ThreadViewProps {
 
 export function ThreadView({ emails, subject }: ThreadViewProps) {
   // By default, expand only the most recent email (last in array since sorted ASC)
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+  const expandedIds$ = useObservable<Set<string>>(() => {
     if (emails.length === 0) return new Set();
     return new Set([emails[emails.length - 1].id]);
   });
 
+  const expandedIds = useValue(expandedIds$);
+
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const hotkeyScopeRef = useRef<HTMLDivElement>(null);
 
-  // Resize refs array when emails change
-  useEffect(() => {
+  // Trim refs array at render time if emails shrunk
+  if (buttonRefs.current.length > emails.length) {
     buttonRefs.current = buttonRefs.current.slice(0, emails.length);
-  }, [emails.length]);
+  }
 
   const moveFocusBetweenMessages = useCallback(
     (direction: "up" | "down") => {
@@ -61,23 +64,22 @@ export function ThreadView({ emails, subject }: ThreadViewProps) {
   });
 
   const toggleMessage = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+    const prev = expandedIds$.get();
+    const next = new Set(prev);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    expandedIds$.set(next);
   }, []);
 
   const expandAll = useCallback(() => {
-    setExpandedIds(new Set(emails.map((e) => e.id)));
+    expandedIds$.set(new Set(emails.map((e) => e.id)));
   }, [emails]);
 
   const collapseAll = useCallback(() => {
-    setExpandedIds(new Set());
+    expandedIds$.set(new Set<string>());
   }, []);
 
   const allExpanded = emails.length > 0 && expandedIds.size === emails.length;

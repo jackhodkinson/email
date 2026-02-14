@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
+import { useObservable, useValue } from "@legendapp/state/react";
 import { sanitizeHtml, plainTextToHtml } from "@/lib/sanitize";
 import {
   processQuotedContent,
@@ -14,19 +15,18 @@ interface EmailContentProps {
 }
 
 export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
-  const [showQuoted, setShowQuoted] = useState(false);
+  const showQuoted$ = useObservable(false);
+  const showQuoted = useValue(showQuoted$);
 
-  // Track previous content to reset showQuoted when email changes
+  // Reset showQuoted when email content changes
   const prevContentRef = useRef({ bodyHtml, bodyText });
-  useEffect(() => {
-    if (
-      prevContentRef.current.bodyHtml !== bodyHtml ||
-      prevContentRef.current.bodyText !== bodyText
-    ) {
-      setShowQuoted(false);
-      prevContentRef.current = { bodyHtml, bodyText };
-    }
-  }, [bodyHtml, bodyText]);
+  if (
+    prevContentRef.current.bodyHtml !== bodyHtml ||
+    prevContentRef.current.bodyText !== bodyText
+  ) {
+    showQuoted$.set(false);
+    prevContentRef.current = { bodyHtml, bodyText };
+  }
 
   // Process content with useMemo to avoid double-render from useEffect + useState
   const processedContent = useMemo(() => {
@@ -59,7 +59,7 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
     };
   }, [bodyHtml, bodyText]);
 
-  const toggleQuoted = useCallback(() => setShowQuoted((prev) => !prev), []);
+  const toggleQuoted = () => showQuoted$.set(!showQuoted$.get());
 
   return (
     <div className="email-content">

@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
+import { useObservable, useValue } from "@legendapp/state/react";
 import { useRouter } from "@tanstack/react-router";
 import { MessagesSquare, RefreshCw } from "lucide-react";
 import { syncAccount } from "../server/functions";
@@ -16,15 +17,16 @@ export function EmailListToolbar({
   onToggleThreadsOnly,
 }: EmailListToolbarProps) {
   const router = useRouter();
-  const [syncing, setSyncing] = useState(false);
+  const syncing$ = useObservable(false);
+  const syncing = useValue(syncing$);
 
   const handleRefresh = useCallback(async () => {
-    setSyncing(true);
+    syncing$.set(true);
     try {
       await syncAccount({ data: { accountId } });
       await router.invalidate();
     } finally {
-      setSyncing(false);
+      syncing$.set(false);
     }
   }, [accountId, router]);
 

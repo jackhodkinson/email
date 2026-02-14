@@ -1,10 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   getThreadedInboxEmails,
@@ -12,15 +6,21 @@ import {
 } from "../server/functions";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
-import { Search, X } from "lucide-react";
+import { SearchBox, type SearchBoxHandle } from "../components/search-box";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === "string" ? search.q : undefined,
     threads:
       search.threads === true || search.threads === "true" ? true : undefined,
+    category:
+      typeof search.category === "string" ? search.category : undefined,
   }),
-  loaderDeps: ({ search }) => ({ q: search.q, threads: search.threads }),
+  loaderDeps: ({ search }) => ({
+    q: search.q,
+    threads: search.threads,
+    category: search.category,
+  }),
   loader: async ({ deps }) => {
     if (deps.q) {
       return {
@@ -29,123 +29,24 @@ export const Route = createFileRoute("/")({
         })),
         query: deps.q,
         threadsOnly: !!deps.threads,
+        category: deps.category,
       };
     }
     return {
       ...(await getThreadedInboxEmails({
-        data: { threadsOnly: !!deps.threads },
+        data: { threadsOnly: !!deps.threads, category: deps.category },
       })),
       query: undefined,
       threadsOnly: !!deps.threads,
+      category: deps.category,
     };
   },
   component: InboxPage,
 });
 
-// ─── Search input (isolated state — keystrokes never re-render the page) ─────
-
-interface SearchBoxHandle {
-  focus(): void;
-}
-
-interface SearchBoxProps {
-  query: string | undefined;
-  threadsOnly: boolean;
-}
-
-const SearchBox = memo(function SearchBox({
-  ref,
-  query,
-  threadsOnly,
-}: SearchBoxProps & { ref?: React.Ref<SearchBoxHandle> }) {
-  const navigate = useNavigate();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState<string | null>(null);
-  const prevQueryRef = useRef(query);
-
-  // When the URL query changes (loader resolved, back/forward nav), sync up
-  if (query !== prevQueryRef.current) {
-    prevQueryRef.current = query;
-    setDraft(null);
-  }
-
-  const value = draft ?? query ?? "";
-
-  useImperativeHandle(ref, () => ({
-    focus() {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    },
-  }));
-
-  const submitSearch = useCallback(
-    (searchValue: string) => {
-      const trimmed = searchValue.trim() || undefined;
-      navigate({
-        to: "/",
-        search: { q: trimmed, threads: threadsOnly || undefined },
-      });
-    },
-    [navigate, threadsOnly],
-  );
-
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setDraft(e.target.value);
-    },
-    [],
-  );
-
-  const handleClear = useCallback(() => {
-    setDraft(null);
-    navigate({
-      to: "/",
-      search: { q: undefined, threads: threadsOnly || undefined },
-    });
-  }, [navigate, threadsOnly]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submitSearch(e.currentTarget.value);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        handleClear();
-        inputRef.current?.blur();
-      }
-    },
-    [submitSearch, handleClear],
-  );
-
-  return (
-    <div className="relative flex-1 max-w-md">
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder="Search emails..."
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        className="search-input"
-      />
-      {value && (
-        <button
-          onClick={handleClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
-        >
-          <X className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-      )}
-    </div>
-  );
-});
-
-// ─── Page ────────────────────────────────────────────────────────────────────
-
 function InboxPage() {
-  const { threads, accountId, query, threadsOnly } = Route.useLoaderData();
+  const { threads, accountId, query, threadsOnly, category } =
+    Route.useLoaderData();
   const navigate = useNavigate();
   const searchBoxRef = useRef<SearchBoxHandle>(null);
 
@@ -154,19 +55,19 @@ function InboxPage() {
       navigate({
         to: "/email/$id",
         params: { id },
-        search: { q: query, threads: threadsOnly || undefined },
+        search: { q: query, threads: threadsOnly || undefined, category },
       });
     },
-    [navigate, query, threadsOnly],
+    [navigate, query, threadsOnly, category],
   );
 
   const handleToggleThreadsOnly = useCallback(() => {
     const nextThreads = !threadsOnly || undefined;
     navigate({
       to: "/",
-      search: { q: query, threads: nextThreads },
+      search: { q: query, threads: nextThreads, category },
     });
-  }, [navigate, threadsOnly, query]);
+  }, [navigate, threadsOnly, query, category]);
 
   const focusSearch = useCallback(() => {
     searchBoxRef.current?.focus();
@@ -180,7 +81,11 @@ function InboxPage() {
     <div className="h-full flex flex-col overflow-hidden">
       <header className="page-header flex items-center justify-between gap-4">
         <h1 className="page-header__title shrink-0">
-          {query ? "Search" : "Inbox"}
+          {query
+            ? "Search"
+            : category
+              ? category.charAt(0).toUpperCase() + category.slice(1)
+              : "Inbox"}
         </h1>
         <SearchBox ref={searchBoxRef} query={query} threadsOnly={threadsOnly} />
         <span className="page-header__count shrink-0">

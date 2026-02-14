@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo } from "react";
+import { useObservable, useValue } from "@legendapp/state/react";
 import { cn } from "@/lib/utils";
 import { downloadAttachment as downloadAttachmentFn } from "../server/functions";
 
@@ -333,16 +334,17 @@ const AttachmentItem = memo(function AttachmentItem({
   attachment: AttachmentData;
   emailId: string;
 }) {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const state$ = useObservable({ downloading: false, error: null as string | null });
+  const isDownloading = useValue(() => state$.downloading.get());
+  const error = useValue(() => state$.error.get());
 
   const fileIcon = getFileIcon(attachment.mimeType);
 
   const handleDownload = async () => {
-    if (isDownloading) return;
+    if (state$.downloading.get()) return;
 
-    setIsDownloading(true);
-    setError(null);
+    state$.downloading.set(true);
+    state$.error.set(null);
 
     try {
       const result = await downloadAttachmentFn({
@@ -375,9 +377,9 @@ const AttachmentItem = memo(function AttachmentItem({
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Failed to download attachment:", err);
-      setError("Failed to download attachment");
+      state$.error.set("Failed to download attachment");
     } finally {
-      setIsDownloading(false);
+      state$.downloading.set(false);
     }
   };
 

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
+import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys";
 import { EmailList } from "./email-list";
 import { EmailListToolbar } from "./email-list-toolbar";
@@ -94,10 +95,10 @@ export function EmailSplitView({
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
-  const [localSelectedIndex, setLocalSelectedIndex] = useState(-1);
-  const [activeSurface, setActiveSurface] = useState<"none" | "list" | "viewer">(
-    "none",
-  );
+  const state$ = useObservable({ localSelectedIndex: -1, activeSurface: "none" as "none" | "list" | "viewer" });
+
+  const localSelectedIndex = useValue(() => state$.localSelectedIndex.get());
+  const activeSurface = useValue(() => state$.activeSurface.get());
 
   const resolvedSelectedIndex = useMemo(() => {
     if (selectedEmailId) {
@@ -107,13 +108,17 @@ export function EmailSplitView({
     return localSelectedIndex;
   }, [emails, localSelectedIndex, selectedEmailId]);
 
-  useEffect(() => {
-    if (!selectedEmailId) return;
-    const index = emails.findIndex((item) => item.id === selectedEmailId);
-    if (index >= 0) {
-      setLocalSelectedIndex(index);
+  // Sync localSelectedIndex when selectedEmailId changes (from URL navigation)
+  const prevSelectedIdRef = useRef(selectedEmailId);
+  if (selectedEmailId !== prevSelectedIdRef.current) {
+    prevSelectedIdRef.current = selectedEmailId;
+    if (selectedEmailId) {
+      const index = emails.findIndex((item) => item.id === selectedEmailId);
+      if (index >= 0) {
+        state$.localSelectedIndex.set(index);
+      }
     }
-  }, [emails, selectedEmailId]);
+  }
 
   useEffect(() => {
     if (document.activeElement === document.body) {
@@ -125,14 +130,14 @@ export function EmailSplitView({
     const handleFocusIn = () => {
       const active = document.activeElement;
       if (active && listRef.current?.contains(active)) {
-        setActiveSurface("list");
+        state$.activeSurface.set("list");
         return;
       }
       if (active && viewerRef.current?.contains(active)) {
-        setActiveSurface("viewer");
+        state$.activeSurface.set("viewer");
         return;
       }
-      setActiveSurface("none");
+      state$.activeSurface.set("none");
     };
 
     document.addEventListener("focusin", handleFocusIn);
@@ -142,7 +147,7 @@ export function EmailSplitView({
 
   const focusList = useCallback(() => {
     listRef.current?.focus({ preventScroll: true });
-    setActiveSurface("list");
+    state$.activeSurface.set("list");
   }, []);
 
   const focusViewer = useCallback(() => {
@@ -155,17 +160,17 @@ export function EmailSplitView({
       focusTargets.length > 0 ? focusTargets[focusTargets.length - 1] : null;
     if (focusTarget) {
       focusTarget.focus({ preventScroll: true });
-      setActiveSurface("viewer");
+      state$.activeSurface.set("viewer");
       return;
     }
     viewer.focus({ preventScroll: true });
-    setActiveSurface("viewer");
+    state$.activeSurface.set("viewer");
   }, []);
 
   const selectIndex = useCallback(
     (index: number) => {
       if (index < 0 || index >= emails.length) return;
-      setLocalSelectedIndex(index);
+      state$.localSelectedIndex.set(index);
       onSelectEmail(emails[index].id);
     },
     [emails, onSelectEmail],
@@ -231,7 +236,7 @@ export function EmailSplitView({
     const target = event.target as HTMLElement | null;
     if (isFocusableElement(target)) return;
     listRef.current?.focus({ preventScroll: true });
-    setActiveSurface("list");
+    state$.activeSurface.set("list");
   }, []);
 
   const handleViewerPointerDown = useCallback(
@@ -247,7 +252,7 @@ export function EmailSplitView({
         return;
       }
       focusViewer();
-      setActiveSurface("viewer");
+      state$.activeSurface.set("viewer");
     },
     [focusViewer],
   );
