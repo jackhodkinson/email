@@ -133,6 +133,7 @@ function InboxPage() {
           onSelectEmail={handleSelectEmail}
           focusSearch={focusSearch}
           searchParams={query ? { q: query } : undefined}
+          accountId={accountId}
         />
       </main>
     </div>

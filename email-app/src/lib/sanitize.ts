@@ -2,7 +2,7 @@
  * HTML sanitization utilities for safe email content rendering
  */
 
-import DOMPurify from "dompurify";
+import DOMPurify from "isomorphic-dompurify";
 
 /**
  * Sanitize HTML content to prevent XSS attacks

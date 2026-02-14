@@ -29,12 +29,13 @@ export const ThreadMessage = memo(function ThreadMessage({
   const senderInitial = senderName.charAt(0).toUpperCase();
 
   return (
-    <div className="thread-msg">
+    <div className="thread-msg" data-message-root>
       {/* Collapsed header - always visible */}
       <button
         ref={buttonRef}
         type="button"
         onClick={onToggle}
+        data-message-focus
         className={cn(
           "thread-msg__header",
           isExpanded && "thread-msg__header--expanded",

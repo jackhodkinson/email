@@ -18,7 +18,12 @@ interface EmailViewProps {
 
 export function EmailView({ email }: EmailViewProps) {
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div
+      className="email-view flex flex-col h-full min-h-0"
+      tabIndex={-1}
+      data-message-root
+      data-message-focus
+    >
       {/* Email metadata */}
       <div className="panel-header space-y-2">
         <h1 className="heading-page">

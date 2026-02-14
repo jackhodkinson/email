@@ -58,7 +58,7 @@ export function EmailList({
       aria-label="Email messages"
       aria-activedescendant={selectedId}
       tabIndex={0}
-      className="h-full overflow-auto focus-ring"
+      className="email-list flex-1 min-h-0 overflow-auto"
     >
       {emails.length === 0 ? (
         <div className="empty-state">

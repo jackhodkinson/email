@@ -1,6 +1,8 @@
 import { HeadContent, Scripts, createRootRoute, Link } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { HotkeysProvider } from '@tanstack/react-hotkeys'
+import { hotkeysDevtoolsPlugin } from '@tanstack/react-hotkeys-devtools'
 
 import { Agentation } from 'agentation'
 import Header from '../components/Header'
@@ -52,25 +54,28 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Header />
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {children}
-        </div>
-        <TanStackDevtools
-          config={{
-            position: 'bottom-right',
-          }}
-          plugins={[
-            {
-              name: 'Tanstack Router',
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
-        {process.env.NODE_ENV === 'development' && (
-          <Agentation endpoint="http://localhost:4747" />
-        )}
-        <Scripts />
+        <HotkeysProvider>
+          <Header />
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {children}
+          </div>
+          <TanStackDevtools
+            config={{
+              position: 'bottom-right',
+            }}
+            plugins={[
+              {
+                name: 'Tanstack Router',
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+              hotkeysDevtoolsPlugin,
+            ]}
+          />
+          {process.env.NODE_ENV === 'development' && (
+            <Agentation endpoint="http://localhost:4747" />
+          )}
+          <Scripts />
+        </HotkeysProvider>
       </body>
     </html>
   )

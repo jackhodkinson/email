@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
+import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys";
 import { EmailList } from "./email-list";
+import { EmailListToolbar } from "./email-list-toolbar";
 import { EmailView } from "./email-view";
 import { ThreadView } from "./thread-view";
 import { useCommands } from "@/lib/commands/use-commands";
-import { getShortcutsForSurface } from "@/lib/commands/shortcuts";
 
 interface EmailSummary {
   id: string;
@@ -53,25 +53,7 @@ interface EmailSplitViewProps {
   onSelectEmail: (id: string) => void;
   focusSearch?: () => void;
   searchParams?: Record<string, unknown>;
-}
-
-const LIST_SHORTCUTS = getShortcutsForSurface("list");
-const VIEWER_SHORTCUTS = getShortcutsForSurface("viewer");
-
-function isInputElement(el: HTMLElement | null): boolean {
-  if (!el) return false;
-  const tagName = el.tagName.toLowerCase();
-  if (tagName === "input" || tagName === "textarea" || tagName === "select") {
-    return true;
-  }
-  return el.isContentEditable;
-}
-
-function shouldIgnoreKey(event: ReactKeyboardEvent): boolean {
-  const target = event.target as HTMLElement | null;
-  if (!isInputElement(target)) return false;
-  if (event.key === "Escape") return false;
-  return true;
+  accountId: string;
 }
 
 function isFocusableElement(el: HTMLElement | null): boolean {
@@ -104,10 +86,14 @@ export function EmailSplitView({
   onSelectEmail,
   focusSearch = noop,
   searchParams,
+  accountId,
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const [localSelectedIndex, setLocalSelectedIndex] = useState(-1);
+  const [activeSurface, setActiveSurface] = useState<"none" | "list" | "viewer">(
+    "none",
+  );
 
   const resolvedSelectedIndex = useMemo(() => {
     if (selectedEmailId) {
@@ -131,12 +117,45 @@ export function EmailSplitView({
     }
   }, []);
 
+  useEffect(() => {
+    const handleFocusIn = () => {
+      const active = document.activeElement;
+      if (active && listRef.current?.contains(active)) {
+        setActiveSurface("list");
+        return;
+      }
+      if (active && viewerRef.current?.contains(active)) {
+        setActiveSurface("viewer");
+        return;
+      }
+      setActiveSurface("none");
+    };
+
+    document.addEventListener("focusin", handleFocusIn);
+    handleFocusIn();
+    return () => document.removeEventListener("focusin", handleFocusIn);
+  }, []);
+
   const focusList = useCallback(() => {
     listRef.current?.focus({ preventScroll: true });
+    setActiveSurface("list");
   }, []);
 
   const focusViewer = useCallback(() => {
-    viewerRef.current?.focus({ preventScroll: true });
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const focusTargets = viewer.querySelectorAll<HTMLElement>(
+      "[data-message-focus]",
+    );
+    const focusTarget =
+      focusTargets.length > 0 ? focusTargets[focusTargets.length - 1] : null;
+    if (focusTarget) {
+      focusTarget.focus({ preventScroll: true });
+      setActiveSurface("viewer");
+      return;
+    }
+    viewer.focus({ preventScroll: true });
+    setActiveSurface("viewer");
   }, []);
 
   const selectIndex = useCallback(
@@ -170,56 +189,73 @@ export function EmailSplitView({
     searchParams,
   });
 
-  const handleListKeyDown = useCallback(
-    (event: ReactKeyboardEvent) => {
-      if (shouldIgnoreKey(event)) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-      const mapping = LIST_SHORTCUTS.find((shortcut) => shortcut.key === key);
-      if (!mapping) return;
-      const command = commands[mapping.command];
+  const runCommand = useCallback(
+    (commandId: string) => {
+      const command = commands[commandId];
       if (!command) return;
-      event.preventDefault();
       command.execute();
     },
     [commands],
   );
 
-  const handleViewerKeyDown = useCallback(
-    (event: ReactKeyboardEvent) => {
-      if (shouldIgnoreKey(event)) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-      const mapping = VIEWER_SHORTCUTS.find((shortcut) => shortcut.key === key);
-      if (!mapping) return;
-      const command = commands[mapping.command];
-      if (!command) return;
-      event.preventDefault();
-      command.execute();
-    },
-    [commands],
+  const listHotkeyOptions = useMemo(
+    () => ({ target: listRef, enabled: activeSurface === "list" }),
+    [activeSurface],
   );
+  const viewerHotkeyOptions = useMemo(
+    () => ({ target: viewerRef, enabled: activeSurface === "viewer" }),
+    [activeSurface],
+  );
+
+  useHotkey("ArrowDown", () => runCommand("selectNextEmail"), listHotkeyOptions);
+  useHotkey("ArrowUp", () => runCommand("selectPreviousEmail"), listHotkeyOptions);
+  useHotkey("Enter", () => runCommand("openSelectedEmail"), listHotkeyOptions);
+  useHotkey("ArrowRight", () => runCommand("focusEmailViewer"), listHotkeyOptions);
+  useHotkey("j", () => runCommand("selectNextEmail"), listHotkeyOptions);
+  useHotkey("k", () => runCommand("selectPreviousEmail"), listHotkeyOptions);
+  useHotkey("/", () => runCommand("focusSearch"), listHotkeyOptions);
+  useHotkey("Escape", () => runCommand("goToInbox"), listHotkeyOptions);
+
+  useHotkey("ArrowLeft", () => runCommand("focusEmailList"), viewerHotkeyOptions);
+  useHotkey("Escape", () => runCommand("goToInbox"), viewerHotkeyOptions);
+  useHotkeySequence(["g", "i"], () => runCommand("goToInbox"), {
+    enabled: activeSurface !== "none",
+    timeout: 1000,
+  });
 
   const handleListPointerDown = useCallback((event: ReactPointerEvent) => {
     const target = event.target as HTMLElement | null;
     if (isFocusableElement(target)) return;
     listRef.current?.focus({ preventScroll: true });
+    setActiveSurface("list");
   }, []);
 
-  const handleViewerPointerDown = useCallback((event: ReactPointerEvent) => {
-    const target = event.target as HTMLElement | null;
-    if (isFocusableElement(target)) return;
-    viewerRef.current?.focus({ preventScroll: true });
-  }, []);
+  const handleViewerPointerDown = useCallback(
+    (event: ReactPointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (isFocusableElement(target)) return;
+      const messageRoot = target?.closest<HTMLElement>("[data-message-root]");
+      if (messageRoot) {
+        const focusTarget =
+          messageRoot.querySelector<HTMLElement>("[data-message-focus]") ??
+          (messageRoot.matches("[data-message-focus]") ? messageRoot : null);
+        focusTarget?.focus({ preventScroll: true });
+        return;
+      }
+      focusViewer();
+      setActiveSurface("viewer");
+    },
+    [focusViewer],
+  );
 
   return (
-    <div className="flex h-full w-full flex-col md:flex-row">
+    <div className="flex h-full w-full flex-col md:flex-row p-2 space-x-2">
       <section
-        onKeyDownCapture={handleListKeyDown}
         onPointerDownCapture={handleListPointerDown}
-        className="md:w-[360px] md:flex-shrink-0 border-b md:border-b-0 md:border-r h-1/2 md:h-full min-h-0"
+        className="md:w-[360px] md:flex-shrink-0 h-1/2 md:h-full min-h-0"
       >
-        <div className="h-full min-h-0 w-full border border-black">
+        <div className="h-full min-h-0 w-full border border-border rounded-md overflow-hidden flex flex-col">
+          <EmailListToolbar accountId={accountId} />
           <EmailList
             emails={emails}
             selectedIndex={resolvedSelectedIndex}
@@ -233,9 +269,8 @@ export function EmailSplitView({
         ref={viewerRef}
         tabIndex={0}
         aria-label="Email viewer"
-        onKeyDownCapture={handleViewerKeyDown}
         onPointerDownCapture={handleViewerPointerDown}
-        className="flex-1 min-w-0 h-1/2 md:h-full min-h-0 focus-ring"
+        className="email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 border-border border rounded-md"
       >
         {threadEmails && threadEmails.length > 1 ? (
           <ThreadView emails={threadEmails} subject={email?.subject ?? null} />

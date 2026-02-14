@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { ThreadMessage } from "./thread-message";
 import { ScrollArea } from "./ui/scroll-area";
 
@@ -27,33 +28,37 @@ export function ThreadView({ emails, subject }: ThreadViewProps) {
   });
 
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const hotkeyScopeRef = useRef<HTMLDivElement>(null);
 
   // Resize refs array when emails change
   useEffect(() => {
     buttonRefs.current = buttonRefs.current.slice(0, emails.length);
   }, [emails.length]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-
+  const moveFocusBetweenMessages = useCallback(
+    (direction: "up" | "down") => {
       const currentIndex = buttonRefs.current.findIndex(
-        (ref) => ref === document.activeElement
+        (ref) => ref === document.activeElement,
       );
       if (currentIndex === -1) return;
 
-      e.preventDefault();
-
       const nextIndex =
-        e.key === "ArrowDown"
+        direction === "down"
           ? Math.min(currentIndex + 1, emails.length - 1)
           : Math.max(currentIndex - 1, 0);
 
       buttonRefs.current[nextIndex]?.focus();
       buttonRefs.current[nextIndex]?.scrollIntoView({ block: "nearest" });
     },
-    [emails.length]
+    [emails.length],
   );
+
+  useHotkey("Alt+ArrowDown", () => moveFocusBetweenMessages("down"), {
+    target: hotkeyScopeRef,
+  });
+  useHotkey("Alt+ArrowUp", () => moveFocusBetweenMessages("up"), {
+    target: hotkeyScopeRef,
+  });
 
   const toggleMessage = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -113,8 +118,7 @@ export function ThreadView({ emails, subject }: ThreadViewProps) {
         )}
       </div>
 
-      {/* Messages - onKeyDown on wrapper to capture Alt+Arrow from focused buttons */}
-      <div className="flex-1 min-h-0" onKeyDown={handleKeyDown}>
+      <div ref={hotkeyScopeRef} className="flex-1 min-h-0">
         <ScrollArea className="h-full">
           <div className="panel-body space-y-3">
             {emails.map((email, index) => (
