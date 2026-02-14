@@ -2,7 +2,11 @@
 
 import { useMemo, useRef } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
-import { sanitizeHtml, plainTextToHtml } from "@/lib/sanitize";
+import {
+  sanitizeHtml,
+  plainTextToHtml,
+  normalizeHtmlParagraphs,
+} from "@/lib/sanitize";
 import {
   processQuotedContent,
   processPlainTextQuotes,
@@ -33,9 +37,13 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
     if (bodyHtml) {
       const { mainContent, quotedContent, hasQuotedContent } =
         processQuotedContent(bodyHtml);
+      const mainNormalized = normalizeHtmlParagraphs(mainContent);
+      const quotedNormalized = quotedContent
+        ? normalizeHtmlParagraphs(quotedContent)
+        : null;
       return {
-        mainContent: sanitizeHtml(mainContent),
-        quotedContent: quotedContent ? sanitizeHtml(quotedContent) : null,
+        mainContent: sanitizeHtml(mainNormalized),
+        quotedContent: quotedNormalized ? sanitizeHtml(quotedNormalized) : null,
         hasQuotedContent,
       };
     }

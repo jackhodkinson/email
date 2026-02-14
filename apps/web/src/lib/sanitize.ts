@@ -5,6 +5,25 @@
 import DOMPurify from "isomorphic-dompurify";
 
 /**
+ * Split HTML on paragraph boundaries (double <br> or double newline) and wrap each
+ * segment in <p> so paragraph spacing applies. Use before sanitize when rendering
+ * email HTML that uses <br> or newlines for paragraphs.
+ */
+export function normalizeHtmlParagraphs(html: string): string {
+  const trimmed = html.trim();
+  if (!trimmed) return trimmed;
+  // Paragraph break = two or more <br> (with optional whitespace) OR two or more newlines
+  const paraBreak =
+    /(?:<br\s*\/?>)\s*(?:(?:<br\s*\/?>)\s*)*|\n\s*\n+/g;
+  const segments = trimmed
+    .split(paraBreak)
+    .map((s) => s.trim().replace(/\n/g, "<br>"))
+    .filter(Boolean);
+  if (segments.length <= 1) return trimmed;
+  return segments.map((block) => `<p>${block}</p>`).join("");
+}
+
+/**
  * Sanitize HTML content to prevent XSS attacks
  * Allows common email formatting tags while stripping potentially dangerous content
  */
@@ -53,7 +72,8 @@ export function sanitizeHtml(html: string): string {
 
 /**
  * Convert plain text to HTML with basic formatting
- * Preserves line breaks and makes URLs clickable
+ * Each line becomes a <p> element, blank lines produce extra spacing.
+ * Makes URLs clickable.
  */
 export function plainTextToHtml(text: string): string {
   // Escape HTML entities
@@ -70,8 +90,16 @@ export function plainTextToHtml(text: string): string {
     '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
   );
 
-  // Convert line breaks to <br> tags
-  const withBreaks = withLinks.replace(/\n/g, "<br>");
+  // Each line becomes its own <p>; blank lines are skipped (the gap from
+  // adjacent <p> margins provides the visual separation).
+  const lines = withLinks.split(/\n/);
+  const wrapped = lines
+    .map((line) => {
+      const trimmed = line.trim();
+      return trimmed ? `<p>${trimmed}</p>` : "";
+    })
+    .filter(Boolean)
+    .join("");
 
-  return withBreaks;
+  return wrapped || "<p></p>";
 }
