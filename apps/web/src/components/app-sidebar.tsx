@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useMatches } from "@tanstack/react-router";
 import {
   Inbox,
-  FlaskConical,
   Mail,
   Tag,
   Users,
@@ -41,21 +40,6 @@ const categoryItems = [
   { title: "Starred", category: "starred", icon: Star },
 ];
 
-const demoItems = [
-  {
-    title: "Server Functions",
-    url: "/demo/start/server-funcs",
-  },
-  {
-    title: "API Request",
-    url: "/demo/start/api-request",
-  },
-  {
-    title: "SSR Demos",
-    url: "/demo/start/ssr",
-  },
-];
-
 export function AppSidebar() {
   const matches = useMatches();
   const currentPath = matches[matches.length - 1]?.fullPath ?? "/";
@@ -71,7 +55,11 @@ export function AppSidebar() {
   useEffect(() => {
     fetchCounts();
     const id = setInterval(fetchCounts, 60_000);
-    return () => clearInterval(id);
+    window.addEventListener("sidebar-counts-changed", fetchCounts);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("sidebar-counts-changed", fetchCounts);
+    };
   }, [fetchCounts]);
 
   const isInboxActive =
@@ -146,27 +134,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Demos</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {demoItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={currentPath === item.url}
-                    tooltip={item.title}
-                  >
-                    <Link to={item.url}>
-                      <FlaskConical />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-</SidebarGroup>
         </SidebarContent>
       <SidebarFooter>
         <ThemeToggle />
