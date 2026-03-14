@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useRouter } from "@tanstack/react-router";
-import { MessagesSquare, RefreshCw } from "lucide-react";
+import { MessagesSquare, RefreshCw, SquarePen } from "lucide-react";
 import { syncAccount } from "../server/functions";
 import { Button } from "./ui/button";
 
@@ -9,12 +9,14 @@ interface EmailListToolbarProps {
   accountId: string;
   threadsOnly: boolean;
   onToggleThreadsOnly: () => void;
+  onComposeNew: () => void;
 }
 
 export function EmailListToolbar({
   accountId,
   threadsOnly,
   onToggleThreadsOnly,
+  onComposeNew,
 }: EmailListToolbarProps) {
   const router = useRouter();
   const syncing$ = useObservable(false);
@@ -42,15 +44,21 @@ export function EmailListToolbar({
       >
         <MessagesSquare />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Refresh emails"
-        disabled={syncing}
-        onClick={handleRefresh}
-      >
-        <RefreshCw className={syncing ? "animate-spin" : ""} />
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="sm" onClick={onComposeNew}>
+          <SquarePen />
+          Compose
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Refresh emails"
+          disabled={syncing}
+          onClick={handleRefresh}
+        >
+          <RefreshCw className={syncing ? "animate-spin" : ""} />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -19,6 +19,7 @@ interface EmailListProps {
   selectedIndex?: number;
   listRef?: RefObject<HTMLDivElement>;
   onSelectEmail?: (id: string) => void;
+  onHoverEmail?: (id: string) => void;
 }
 
 const ESTIMATED_ROW_HEIGHT = 76;
@@ -28,6 +29,7 @@ export function EmailList({
   selectedIndex = -1,
   listRef,
   onSelectEmail,
+  onHoverEmail,
 }: EmailListProps) {
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = listRef ?? internalRef;
@@ -96,6 +98,7 @@ export function EmailList({
                   isSelected={isSelected}
                   threadCount={email.threadCount}
                   onSelectEmail={onSelectEmail}
+                  onHoverEmail={onHoverEmail}
                 />
               </div>
             );

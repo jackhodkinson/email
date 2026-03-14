@@ -1,5 +1,8 @@
 import { EmailContent } from "./email-content";
+import { EmailAddressChip } from "./email-address-chip";
 import { Separator } from "./ui/separator";
+import { Button } from "./ui/button";
+import { Reply } from "lucide-react";
 
 interface EmailViewProps {
   email: {
@@ -14,9 +17,10 @@ interface EmailViewProps {
     isRead: boolean;
     labels: string[];
   };
+  onReply?: (messageId: string) => void;
 }
 
-export function EmailView({ email }: EmailViewProps) {
+export function EmailView({ email, onReply }: EmailViewProps) {
   return (
     <div
       className="email-view flex flex-col h-full min-h-0"
@@ -26,20 +30,40 @@ export function EmailView({ email }: EmailViewProps) {
     >
       {/* Email metadata */}
       <div className="panel-header space-y-2">
-        <h1 className="heading-page">
-          {email.subject || "(no subject)"}
-        </h1>
+        <div className="flex items-start justify-between gap-2">
+          <h1 className="heading-page">
+            {email.subject || "(no subject)"}
+          </h1>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onReply?.(email.id)}
+          >
+            <Reply />
+            Reply
+          </Button>
+        </div>
 
         <div className="email-meta space-y-1">
           <div className="email-meta__row">
             <span className="email-meta__label">From:</span>
-            <span>{email.sender}</span>
+            <span>
+              <EmailAddressChip raw={email.sender} />
+            </span>
           </div>
 
           {email.recipients.length > 0 && (
             <div className="email-meta__row">
               <span className="email-meta__label">To:</span>
-              <span>{email.recipients.join(", ")}</span>
+              <span>
+                {email.recipients.map((r, i) => (
+                  <span key={r}>
+                    <EmailAddressChip raw={r} />
+                    {i < email.recipients.length - 1 && ", "}
+                  </span>
+                ))}
+              </span>
             </div>
           )}
 

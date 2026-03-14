@@ -21,9 +21,10 @@ interface ThreadEmail {
 interface ThreadViewProps {
   emails: ThreadEmail[];
   subject: string | null;
+  onReply?: (messageId: string) => void;
 }
 
-export function ThreadView({ emails, subject }: ThreadViewProps) {
+export function ThreadView({ emails, subject, onReply }: ThreadViewProps) {
   // By default, expand only the most recent email (first in array since sorted DESC)
   const expandedIds$ = useObservable<Set<string>>(() => {
     if (emails.length === 0) return new Set();
@@ -114,6 +115,7 @@ export function ThreadView({ emails, subject }: ThreadViewProps) {
                 email={email}
                 isExpanded={expandedIds.has(email.id)}
                 onToggle={() => toggleMessage(email.id)}
+                onReply={onReply}
                 buttonRef={(el) => {
                   buttonRefs.current[index] = el;
                 }}

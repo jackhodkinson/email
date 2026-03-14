@@ -15,11 +15,12 @@ interface EmailItemProps {
   isSelected?: boolean;
   threadCount?: number;
   onSelectEmail?: (id: string) => void;
+  onHoverEmail?: (id: string) => void;
 }
 
 export const EmailItem = memo(
   forwardRef<HTMLDivElement, EmailItemProps>(function EmailItem(
-    { id, email, isSelected, threadCount, onSelectEmail },
+    { id, email, isSelected, threadCount, onSelectEmail, onHoverEmail },
     ref,
   ) {
     return (
@@ -34,6 +35,7 @@ export const EmailItem = memo(
           !email.isRead && !isSelected && "email-item--unread",
         )}
         onClick={() => onSelectEmail?.(email.id)}
+        onMouseEnter={() => onHoverEmail?.(email.id)}
       >
         <div className="flex items-start justify-between gap-2 overflow-hidden">
           <div className="flex-1 min-w-0 overflow-hidden">

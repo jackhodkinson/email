@@ -52,11 +52,14 @@ interface EmailSplitViewProps {
   email?: EmailDetail | null;
   threadEmails?: ThreadEmail[] | null;
   onSelectEmail: (id: string) => void;
+  onHoverEmail?: (id: string) => void;
   focusSearch?: () => void;
   searchParams?: Record<string, unknown>;
   accountId: string;
   threadsOnly: boolean;
   onToggleThreadsOnly: () => void;
+  onComposeNew: () => void;
+  onComposeReply: (messageId: string) => void;
 }
 
 function isFocusableElement(el: HTMLElement | null): boolean {
@@ -87,11 +90,14 @@ export function EmailSplitView({
   email,
   threadEmails,
   onSelectEmail,
+  onHoverEmail,
   focusSearch = noop,
   searchParams,
   accountId,
   threadsOnly,
   onToggleThreadsOnly,
+  onComposeNew,
+  onComposeReply,
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -268,12 +274,14 @@ export function EmailSplitView({
             accountId={accountId}
             threadsOnly={threadsOnly}
             onToggleThreadsOnly={onToggleThreadsOnly}
+            onComposeNew={onComposeNew}
           />
           <EmailList
             emails={emails}
             selectedIndex={resolvedSelectedIndex}
             listRef={listRef}
             onSelectEmail={handleSelectEmail}
+            onHoverEmail={onHoverEmail}
           />
         </div>
       </section>
@@ -286,9 +294,13 @@ export function EmailSplitView({
         className="email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 border-border border rounded-md"
       >
         {threadEmails && threadEmails.length > 1 ? (
-          <ThreadView emails={threadEmails} subject={email?.subject ?? null} />
+          <ThreadView
+            emails={threadEmails}
+            subject={email?.subject ?? null}
+            onReply={onComposeReply}
+          />
         ) : email ? (
-          <EmailView email={email} />
+          <EmailView email={email} onReply={onComposeReply} />
         ) : (
           <div className="empty-state">
             <div className="text-center space-y-2">

@@ -1,5 +1,8 @@
 import { memo, type Ref } from "react";
+import { Reply } from "lucide-react";
 import { EmailContent } from "./email-content";
+import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
+import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 
 interface ThreadMessageProps {
@@ -16,6 +19,7 @@ interface ThreadMessageProps {
   };
   isExpanded?: boolean;
   onToggle?: () => void;
+  onReply?: (messageId: string) => void;
   buttonRef?: Ref<HTMLButtonElement>;
 }
 
@@ -23,6 +27,7 @@ export const ThreadMessage = memo(function ThreadMessage({
   email,
   isExpanded = false,
   onToggle,
+  onReply,
   buttonRef,
 }: ThreadMessageProps) {
   const senderName = formatSender(email.sender);
@@ -91,17 +96,38 @@ export const ThreadMessage = memo(function ThreadMessage({
       {/* Expanded content */}
       {isExpanded && (
         <div className="thread-msg__body">
+          <div className="mb-4 flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onReply?.(email.id)}
+            >
+              <Reply />
+              Reply
+            </Button>
+          </div>
+
           {/* Email metadata */}
           <div className="email-meta space-y-1 mb-4">
             <div className="email-meta__row">
               <span className="email-meta__label">From:</span>
-              <span>{email.sender}</span>
+              <span>
+                <EmailAddressChip raw={email.sender} />
+              </span>
             </div>
 
             {email.recipients.length > 0 && (
               <div className="email-meta__row">
                 <span className="email-meta__label">To:</span>
-                <span>{email.recipients.join(", ")}</span>
+                <span>
+                  {email.recipients.map((r, i) => (
+                    <span key={r}>
+                      <EmailAddressChip raw={r} />
+                      {i < email.recipients.length - 1 && ", "}
+                    </span>
+                  ))}
+                </span>
               </div>
             )}
 
@@ -139,8 +165,7 @@ export const ThreadMessage = memo(function ThreadMessage({
 });
 
 function formatSender(sender: string): string {
-  const match = sender.match(/^(.+?)\s*<[^>]+>$/);
-  return match ? match[1].trim() : sender;
+  return parseEmailAddress(sender).name;
 }
 
 function formatDate(timestamp: number): string {
