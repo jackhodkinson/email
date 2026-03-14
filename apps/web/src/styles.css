@@ -437,9 +437,10 @@ code {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    transition: box-shadow 150ms ease;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
   }
   .thread-msg:focus-within {
+    border-color: oklch(from var(--primary) l c h / 0.6);
     box-shadow: 0 0 0 2px oklch(from var(--primary) l c h / 0.6);
   }
   .thread-msg__header {

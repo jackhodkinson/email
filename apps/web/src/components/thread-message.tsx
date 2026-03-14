@@ -15,6 +15,7 @@ interface ThreadMessageProps {
     isRead: boolean;
   };
   isExpanded?: boolean;
+  isInitialFocusTarget?: boolean;
   onToggle?: () => void;
   buttonRef?: Ref<HTMLButtonElement>;
 }
@@ -22,6 +23,7 @@ interface ThreadMessageProps {
 export const ThreadMessage = memo(function ThreadMessage({
   email,
   isExpanded = false,
+  isInitialFocusTarget = false,
   onToggle,
   buttonRef,
 }: ThreadMessageProps) {
@@ -36,6 +38,7 @@ export const ThreadMessage = memo(function ThreadMessage({
         type="button"
         onClick={onToggle}
         data-message-focus
+        data-message-focus-initial={isInitialFocusTarget || undefined}
         className={cn(
           "thread-msg__header",
           isExpanded && "thread-msg__header--expanded",
