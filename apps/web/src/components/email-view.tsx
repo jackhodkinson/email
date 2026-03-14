@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { EmailContent } from "./email-content";
 import { EmailAddressChip } from "./email-address-chip";
 import { Separator } from "./ui/separator";
@@ -18,15 +19,34 @@ interface EmailViewProps {
     labels: string[];
   };
   onReply?: (messageId: string) => void;
+  shouldAutoFocus?: boolean;
+  onAutoFocusComplete?: () => void;
 }
 
-export function EmailView({ email, onReply }: EmailViewProps) {
+export function EmailView({
+  email,
+  onReply,
+  shouldAutoFocus = false,
+  onAutoFocusComplete,
+}: EmailViewProps) {
+  const setRootRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (!el || !shouldAutoFocus) return;
+
+      el.focus({ preventScroll: true });
+      onAutoFocusComplete?.();
+    },
+    [onAutoFocusComplete, shouldAutoFocus],
+  );
+
   return (
     <div
+      ref={setRootRef}
       className="email-view flex flex-col h-full min-h-0"
       tabIndex={-1}
       data-message-root
       data-message-focus
+      data-message-focus-initial
     >
       {/* Email metadata */}
       <div className="panel-header space-y-2">

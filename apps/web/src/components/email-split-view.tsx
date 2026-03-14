@@ -101,10 +101,22 @@ export function EmailSplitView({
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
-  const state$ = useObservable({ localSelectedIndex: -1, activeSurface: "none" as "none" | "list" | "viewer" });
+  const state$ = useObservable({
+    localSelectedIndex: -1,
+    activeSurface: "none" as "none" | "list" | "viewer",
+    pendingViewerFocus: false,
+  });
+
+  const findViewerFocusTarget = useCallback((viewer: HTMLElement) => {
+    return (
+      viewer.querySelector<HTMLElement>("[data-message-focus-initial]") ??
+      viewer.querySelector<HTMLElement>("[data-message-focus]")
+    );
+  }, []);
 
   const localSelectedIndex = useValue(() => state$.localSelectedIndex.get());
   const activeSurface = useValue(() => state$.activeSurface.get());
+  const pendingViewerFocus = useValue(() => state$.pendingViewerFocus.get());
 
   const resolvedSelectedIndex = useMemo(() => {
     if (selectedEmailId) {
@@ -141,8 +153,12 @@ export function EmailSplitView({
       }
       if (active && viewerRef.current?.contains(active)) {
         state$.activeSurface.set("viewer");
+        if (active !== viewerRef.current) {
+          state$.pendingViewerFocus.set(false);
+        }
         return;
       }
+      state$.pendingViewerFocus.set(false);
       state$.activeSurface.set("none");
     };
 
@@ -159,19 +175,17 @@ export function EmailSplitView({
   const focusViewer = useCallback(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
-    const focusTargets = viewer.querySelectorAll<HTMLElement>(
-      "[data-message-focus]",
-    );
-    const focusTarget =
-      focusTargets.length > 0 ? focusTargets[focusTargets.length - 1] : null;
+    const focusTarget = findViewerFocusTarget(viewer);
     if (focusTarget) {
       focusTarget.focus({ preventScroll: true });
       state$.activeSurface.set("viewer");
+      state$.pendingViewerFocus.set(false);
       return;
     }
     viewer.focus({ preventScroll: true });
     state$.activeSurface.set("viewer");
-  }, []);
+    state$.pendingViewerFocus.set(true);
+  }, [findViewerFocusTarget]);
 
   const selectIndex = useCallback(
     (index: number) => {
@@ -298,9 +312,17 @@ export function EmailSplitView({
             emails={threadEmails}
             subject={email?.subject ?? null}
             onReply={onComposeReply}
+            selectedEmailId={selectedEmailId ?? email?.id ?? null}
+            shouldAutoFocus={pendingViewerFocus && activeSurface === "viewer"}
+            onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
           />
         ) : email ? (
-          <EmailView email={email} onReply={onComposeReply} />
+          <EmailView
+            email={email}
+            onReply={onComposeReply}
+            shouldAutoFocus={pendingViewerFocus && activeSurface === "viewer"}
+            onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
+          />
         ) : (
           <div className="empty-state">
             <div className="text-center space-y-2">

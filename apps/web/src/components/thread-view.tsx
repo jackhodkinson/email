@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
@@ -22,13 +22,25 @@ interface ThreadViewProps {
   emails: ThreadEmail[];
   subject: string | null;
   onReply?: (messageId: string) => void;
+  selectedEmailId?: string | null;
+  shouldAutoFocus?: boolean;
+  onAutoFocusComplete?: () => void;
 }
 
-export function ThreadView({ emails, subject, onReply }: ThreadViewProps) {
-  // By default, expand only the most recent email (first in array since sorted DESC)
+export function ThreadView({
+  emails,
+  subject,
+  onReply,
+  selectedEmailId,
+  shouldAutoFocus = false,
+  onAutoFocusComplete,
+}: ThreadViewProps) {
+  const initialFocusedEmail =
+    emails.find((email) => email.id === selectedEmailId) ?? emails[0] ?? null;
+
   const expandedIds$ = useObservable<Set<string>>(() => {
-    if (emails.length === 0) return new Set();
-    return new Set([emails[0].id]);
+    if (!initialFocusedEmail) return new Set();
+    return new Set([initialFocusedEmail.id]);
   });
 
   const expandedIds = useValue(expandedIds$);
@@ -40,6 +52,20 @@ export function ThreadView({ emails, subject, onReply }: ThreadViewProps) {
   if (buttonRefs.current.length > emails.length) {
     buttonRefs.current = buttonRefs.current.slice(0, emails.length);
   }
+
+  useEffect(() => {
+    if (!initialFocusedEmail) {
+      expandedIds$.set(new Set<string>());
+      return;
+    }
+
+    const expandedIds = expandedIds$.get();
+    if (expandedIds.size === 1 && expandedIds.has(initialFocusedEmail.id)) {
+      return;
+    }
+
+    expandedIds$.set(new Set([initialFocusedEmail.id]));
+  }, [expandedIds$, initialFocusedEmail]);
 
   const moveFocusBetweenMessages = useCallback(
     (direction: "up" | "down") => {
@@ -59,6 +85,24 @@ export function ThreadView({ emails, subject, onReply }: ThreadViewProps) {
     [emails.length],
   );
 
+  const setButtonRef = useCallback(
+    (index: number, emailId: string) => (el: HTMLButtonElement | null) => {
+      buttonRefs.current[index] = el;
+      if (!el || !shouldAutoFocus) return;
+      if (emailId !== initialFocusedEmail?.id) return;
+
+      el.focus({ preventScroll: true });
+      onAutoFocusComplete?.();
+    },
+    [initialFocusedEmail?.id, onAutoFocusComplete, shouldAutoFocus],
+  );
+
+  useHotkey("ArrowDown", () => moveFocusBetweenMessages("down"), {
+    target: hotkeyScopeRef,
+  });
+  useHotkey("ArrowUp", () => moveFocusBetweenMessages("up"), {
+    target: hotkeyScopeRef,
+  });
   useHotkey("Alt+ArrowDown", () => moveFocusBetweenMessages("down"), {
     target: hotkeyScopeRef,
   });
@@ -114,11 +158,10 @@ export function ThreadView({ emails, subject, onReply }: ThreadViewProps) {
                 key={email.id}
                 email={email}
                 isExpanded={expandedIds.has(email.id)}
+                isInitialFocusTarget={email.id === initialFocusedEmail?.id}
                 onToggle={() => toggleMessage(email.id)}
                 onReply={onReply}
-                buttonRef={(el) => {
-                  buttonRefs.current[index] = el;
-                }}
+                buttonRef={setButtonRef(index, email.id)}
               />
             ))}
           </div>
