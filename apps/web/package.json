@@ -18,6 +18,7 @@
     "@tanstack/react-devtools": "^0.7.0",
     "@tanstack/react-hotkeys": "^0.1.0",
     "@tanstack/react-hotkeys-devtools": "^0.1.0",
+    "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-router": "^1.132.0",
     "@tanstack/react-router-devtools": "^1.132.0",
     "@tanstack/react-router-ssr-query": "^1.131.7",

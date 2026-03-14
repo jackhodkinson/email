@@ -1,0 +1,100 @@
+import { queryOptions, QueryClient } from "@tanstack/react-query";
+import { getEmailById, getThreadEmails } from "../server/functions";
+
+/** How many emails at the top of the list to eagerly prefetch on load. */
+export const PREFETCH_BATCH_SIZE = 5;
+
+/** How many adjacent emails (above + below selection) to prefetch on navigate. */
+export const PREFETCH_ADJACENT = 2;
+
+/**
+ * Email bodies rarely change — keep them fresh for 10 minutes client-side.
+ * This means revisiting an email within 10 min is instant (0 ms).
+ */
+const EMAIL_STALE_TIME = 10 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Query option factories
+// ---------------------------------------------------------------------------
+
+export function emailDetailQueryOptions(emailId: string) {
+  return queryOptions({
+    queryKey: ["email", "detail", emailId],
+    queryFn: () => getEmailById({ data: { emailId } }),
+    staleTime: EMAIL_STALE_TIME,
+    // Keep unused entries in cache for 30 min so back-navigation is instant
+    gcTime: 30 * 60 * 1000,
+  });
+}
+
+export function threadEmailsQueryOptions(threadId: string) {
+  return queryOptions({
+    queryKey: ["email", "thread", threadId],
+    queryFn: () => getThreadEmails({ data: { threadId } }),
+    staleTime: EMAIL_STALE_TIME,
+    gcTime: 30 * 60 * 1000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Prefetch helpers
+// ---------------------------------------------------------------------------
+
+/** Prefetch a single email detail (fire-and-forget, never throws). */
+export function prefetchEmailDetail(
+  queryClient: QueryClient,
+  emailId: string,
+) {
+  queryClient.prefetchQuery(emailDetailQueryOptions(emailId));
+}
+
+/**
+ * Prefetch the first N emails from a list.
+ * Called after the inbox list loads so the top emails are ready before click.
+ */
+export function prefetchBatch(
+  queryClient: QueryClient,
+  emailIds: string[],
+  count = PREFETCH_BATCH_SIZE,
+) {
+  for (const id of emailIds.slice(0, count)) {
+    prefetchEmailDetail(queryClient, id);
+  }
+}
+
+/**
+ * Prefetch emails adjacent to the currently selected index.
+ * Called when the user navigates j/k or clicks an email.
+ */
+export function prefetchAdjacent(
+  queryClient: QueryClient,
+  emailIds: string[],
+  selectedIndex: number,
+  range = PREFETCH_ADJACENT,
+) {
+  const start = Math.max(0, selectedIndex - range);
+  const end = Math.min(emailIds.length, selectedIndex + range + 1);
+  for (let i = start; i < end; i++) {
+    if (i === selectedIndex) continue; // already fetching this one
+    prefetchEmailDetail(queryClient, emailIds[i]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Singleton QueryClient
+// ---------------------------------------------------------------------------
+
+let queryClient: QueryClient | undefined;
+
+export function getQueryClient() {
+  if (!queryClient) {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: EMAIL_STALE_TIME,
+        },
+      },
+    });
+  }
+  return queryClient;
+}

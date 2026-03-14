@@ -500,6 +500,82 @@ export const getThreadEmails = createServerFn({ method: "GET" })
     return result;
   });
 
+export const createDraftAction = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject: string;
+      body: string;
+      replyToMessageId?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    if (data.replyToMessageId) {
+      const result = await core.createReplyDraft({
+        messageId: data.replyToMessageId,
+        body: data.body,
+        cc: data.cc,
+        bcc: data.bcc,
+      });
+      return { id: result.id, messageId: result.messageId, threadId: result.threadId };
+    }
+
+    const result = await core.createDraft({
+      to: data.to,
+      cc: data.cc,
+      bcc: data.bcc,
+      subject: data.subject,
+      body: data.body,
+    });
+    return { id: result.id, messageId: result.messageId, threadId: result.threadId };
+  });
+
+export const sendEmailAction = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject: string;
+      body: string;
+      replyToMessageId?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    if (data.replyToMessageId) {
+      const result = await core.sendReply({
+        messageId: data.replyToMessageId,
+        body: data.body,
+        cc: data.cc,
+        bcc: data.bcc,
+      });
+      return { messageId: result.messageId, threadId: result.threadId };
+    }
+
+    const result = await core.sendMessage({
+      to: data.to,
+      cc: data.cc,
+      bcc: data.bcc,
+      subject: data.subject,
+      body: data.body,
+    });
+    return { messageId: result.messageId, threadId: result.threadId };
+  });
+
 export const downloadAttachment = createServerFn({ method: "GET" })
   .inputValidator((data: { emailId: string; attachmentId: string }) => data)
   .handler(async ({ data }) => {

@@ -676,6 +676,103 @@ async function tags() {
   }
 }
 
+async function draft() {
+  const flagArgs = args.slice(1);
+  let to: string | undefined;
+  let cc: string | undefined;
+  let bcc: string | undefined;
+  let subject: string | undefined;
+  let body: string | undefined;
+  let replyId: string | undefined;
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    if (flagArgs[i] === "--to" && flagArgs[i + 1]) {
+      to = flagArgs[i + 1]!;
+      i++;
+    } else if (flagArgs[i] === "--cc" && flagArgs[i + 1]) {
+      cc = flagArgs[i + 1]!;
+      i++;
+    } else if (flagArgs[i] === "--bcc" && flagArgs[i + 1]) {
+      bcc = flagArgs[i + 1]!;
+      i++;
+    } else if ((flagArgs[i] === "-s" || flagArgs[i] === "--subject") && flagArgs[i + 1]) {
+      subject = flagArgs[i + 1]!;
+      i++;
+    } else if ((flagArgs[i] === "-b" || flagArgs[i] === "--body") && flagArgs[i + 1]) {
+      body = flagArgs[i + 1]!;
+      i++;
+    } else if ((flagArgs[i] === "-r" || flagArgs[i] === "--reply") && flagArgs[i + 1]) {
+      replyId = flagArgs[i + 1]!;
+      i++;
+    }
+  }
+
+  // Read body from stdin if not provided via flag and stdin is piped
+  if (!body && !process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk);
+    }
+    body = Buffer.concat(chunks).toString("utf-8").trim();
+  }
+
+  if (!body) {
+    console.error("Body is required. Use --body or pipe via stdin.");
+    process.exit(1);
+  }
+
+  if (replyId) {
+    // Reply mode — resolve short ID
+    let messageId: string | null = null;
+    const n = parseInt(replyId, 10);
+    const isPureNumber = !isNaN(n) && String(n) === replyId;
+
+    const db = getDb();
+
+    if (isPureNumber) {
+      const resolved = resolveShortId(db, `#${replyId}`);
+      if (resolved) messageId = resolved.messageId;
+    }
+    if (!messageId) {
+      const resolved = resolveShortId(db, replyId);
+      if (resolved) messageId = resolved.messageId;
+    }
+    if (!messageId) {
+      console.error(`Unknown email ID: ${replyId}\nRun 'cmail list' first, then use an ID from the output.`);
+      process.exit(1);
+    }
+
+    const { createReplyDraft } = await import("./lib/gmail.ts");
+    const result = await createReplyDraft({
+      messageId,
+      body,
+      cc: cc ? cc.split(",").map((s) => s.trim()) : undefined,
+      bcc: bcc ? bcc.split(",").map((s) => s.trim()) : undefined,
+    });
+    console.log(`Draft created (reply) — id: ${result.id}`);
+  } else {
+    // New draft mode
+    if (!to) {
+      console.error("--to is required for new drafts.");
+      process.exit(1);
+    }
+    if (!subject) {
+      console.error("--subject is required for new drafts.");
+      process.exit(1);
+    }
+
+    const { createDraft } = await import("./lib/gmail.ts");
+    const result = await createDraft({
+      to: to.split(",").map((s) => s.trim()),
+      cc: cc ? cc.split(",").map((s) => s.trim()) : undefined,
+      bcc: bcc ? bcc.split(",").map((s) => s.trim()) : undefined,
+      subject,
+      body,
+    });
+    console.log(`Draft created — id: ${result.id}`);
+  }
+}
+
 function usage() {
   console.log(`cmail - Gmail in your terminal
 
@@ -714,6 +811,12 @@ Usage:
   cmail count -q "from:alice"    Count matching a query
   cmail tags list                List all labels
   cmail tags create <name>       Create a new label
+  cmail draft --to a@b.com --subject "Hi" --body "Hello"
+                                  Create a new draft
+  cmail draft --reply 3 --body "Thanks!"
+                                  Reply draft to message #3
+  echo "body" | cmail draft --to a@b.com -s "Subject"
+                                  Draft with body from stdin
   cmail sync                    Sync mailbox (incremental)
   cmail sync --full             Force full re-sync
   cmail sync --since 2y         Set sync scope (3m, 6m, 1y, 2y, all)
@@ -723,44 +826,110 @@ Options:
   -p, --plain                   Strip ANSI colors (plain text output)`);
 }
 
-switch (command) {
-  case "auth":
-    await auth();
-    break;
-  case "sync":
-    await sync();
-    break;
-  case "list":
-    await list();
-    break;
-  case "read":
-    await read();
-    break;
-  case "download":
-    await download();
-    break;
-  case "search":
-    await search();
-    break;
-  case "tag":
-    await tag();
-    break;
-  case "count":
-    await count();
-    break;
-  case "tags":
-    await tags();
-    break;
-  case undefined:
-    await list();
-    break;
-  case "help":
-  case "--help":
-  case "-h":
-    usage();
-    break;
-  default:
-    console.error(`Unknown command: ${command}`);
-    usage();
-    process.exit(1);
+function formatError(err: unknown): { message: string; hint?: string } {
+  const msg = err instanceof Error ? err.message : String(err);
+  const status = (err as any)?.status ?? (err as any)?.code;
+
+  // OAuth token expired/revoked
+  if (msg === "invalid_grant" || msg.includes("invalid_grant")) {
+    return {
+      message: "Your Gmail session has expired.",
+      hint: "Run 'cmail auth' to re-authenticate.",
+    };
+  }
+
+  // Not authenticated at all
+  if (msg === "Not authenticated" || msg.includes("Not authenticated")) {
+    return {
+      message: "Not authenticated with Gmail.",
+      hint: "Run 'cmail auth' to get started.",
+    };
+  }
+
+  // Missing credentials file
+  if (msg.includes("Client credentials not found")) {
+    return {
+      message: "OAuth credentials not configured.",
+      hint: "Download your OAuth 2.0 credentials from Google Cloud Console\nand save them to ~/.config/gmail-skill/client-credentials.json",
+    };
+  }
+
+  // Network errors
+  if (msg.includes("ENOTFOUND") || msg.includes("ENETUNREACH") || msg.includes("EAI_AGAIN") || msg.includes("fetch failed")) {
+    return {
+      message: "Network error — couldn't reach Gmail.",
+      hint: "Check your internet connection and try again.",
+    };
+  }
+
+  // Rate limiting
+  if (status === 429) {
+    return {
+      message: "Too many requests — Gmail rate limit hit.",
+      hint: "Wait a minute and try again.",
+    };
+  }
+
+  // Forbidden
+  if (status === 403) {
+    return {
+      message: "Access denied by Gmail.",
+      hint: "You may need to re-authenticate: run 'cmail auth'.",
+    };
+  }
+
+  // Generic — just show the message, not the stack
+  return { message: msg };
+}
+
+try {
+  switch (command) {
+    case "auth":
+      await auth();
+      break;
+    case "sync":
+      await sync();
+      break;
+    case "list":
+      await list();
+      break;
+    case "read":
+      await read();
+      break;
+    case "download":
+      await download();
+      break;
+    case "search":
+      await search();
+      break;
+    case "tag":
+      await tag();
+      break;
+    case "count":
+      await count();
+      break;
+    case "draft":
+      await draft();
+      break;
+    case "tags":
+      await tags();
+      break;
+    case undefined:
+      await list();
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      usage();
+      break;
+    default:
+      console.error(`Unknown command: ${command}`);
+      usage();
+      process.exit(1);
+  }
+} catch (err) {
+  const { message, hint } = formatError(err);
+  console.error(`Error: ${message}`);
+  if (hint) console.error(hint);
+  process.exit(1);
 }

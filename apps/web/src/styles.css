@@ -343,6 +343,20 @@ code {
     color: var(--muted-foreground);
     width: 3rem;
   }
+  .email-address-chip {
+    all: unset;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 0 0.125rem;
+    transition: background-color 0.15s, color 0.15s;
+  }
+  .email-address-chip:hover {
+    background-color: var(--muted);
+    text-decoration: underline;
+  }
+  .email-address-chip:active {
+    opacity: 0.7;
+  }
   .email-attachment-hint {
     display: flex;
     align-items: center;

@@ -4,11 +4,13 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HotkeysProvider } from '@tanstack/react-hotkeys'
 import { hotkeysDevtoolsPlugin } from '@tanstack/react-hotkeys-devtools'
+import { QueryClientProvider } from '@tanstack/react-query'
 
 import { AppSidebar } from '../components/app-sidebar'
 import { SearchBox, type SearchBoxHandle } from '../components/search-box'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar'
 import { SearchBoxContext } from '../lib/search-context'
+import { getQueryClient } from '../lib/query'
 import { ThemeProvider, THEME_INIT_SCRIPT } from '../lib/theme'
 
 import appCss from '../styles.css?url'
@@ -67,6 +69,7 @@ function RootHeader({ searchBoxRef }: { searchBoxRef: React.RefObject<SearchBoxH
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const searchBoxRef = useRef<SearchBoxHandle>(null);
+  const queryClient = getQueryClient();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -76,6 +79,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <ScriptOnce>{THEME_INIT_SCRIPT}</ScriptOnce>
         <HotkeysProvider>
+          <QueryClientProvider client={queryClient}>
           <ThemeProvider>
           <SearchBoxContext.Provider value={searchBoxRef}>
           <SidebarProvider className="h-full min-h-0">
@@ -89,6 +93,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </SidebarProvider>
           </SearchBoxContext.Provider>
           </ThemeProvider>
+          </QueryClientProvider>
           <TanStackDevtools
             config={{
               position: 'bottom-right',

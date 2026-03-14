@@ -369,6 +369,195 @@ export async function searchThreads(
   return results;
 }
 
+// ─── Draft creation ──────────────────────────────────────────────────
+
+export interface DraftOptions {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  body: string;
+}
+
+export interface ReplyDraftOptions {
+  messageId: string;
+  body: string;
+  cc?: string[];
+  bcc?: string[];
+}
+
+export interface DraftResult {
+  id: string;
+  messageId: string;
+  threadId?: string;
+}
+
+export interface SendResult {
+  messageId: string;
+  threadId?: string;
+}
+
+function buildRfc2822Message(opts: {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  body: string;
+  inReplyTo?: string;
+  references?: string;
+  threadSubject?: string;
+}): string {
+  const lines: string[] = [];
+  lines.push(`To: ${opts.to.join(", ")}`);
+  if (opts.cc?.length) lines.push(`Cc: ${opts.cc.join(", ")}`);
+  if (opts.bcc?.length) lines.push(`Bcc: ${opts.bcc.join(", ")}`);
+  lines.push(`Subject: ${opts.threadSubject ?? opts.subject}`);
+  lines.push("MIME-Version: 1.0");
+  lines.push("Content-Type: text/plain; charset=utf-8");
+  if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`);
+  if (opts.references) lines.push(`References: ${opts.references}`);
+  lines.push("");
+  lines.push(opts.body);
+  return lines.join("\r\n");
+}
+
+function base64urlEncode(str: string): string {
+  return Buffer.from(str, "utf-8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+async function buildReplyMessage(
+  gmail: gmail_v1.Gmail,
+  opts: ReplyDraftOptions,
+): Promise<{ raw: string; threadId?: string }> {
+  // Fetch original message headers for threading
+  const original = await gmail.users.messages.get({
+    userId: "me",
+    id: opts.messageId,
+    format: "metadata",
+    metadataHeaders: ["Message-ID", "References", "Subject", "To", "From"],
+  });
+
+  const headers = original.data.payload?.headers;
+  const originalMessageId = getHeader(headers, "Message-ID");
+  const originalReferences = getHeader(headers, "References");
+  const originalSubject = getHeader(headers, "Subject");
+  const originalFrom = getHeader(headers, "From");
+  const threadId = original.data.threadId || undefined;
+
+  // Build References header: original References + original Message-ID
+  const references = originalReferences
+    ? `${originalReferences} ${originalMessageId}`
+    : originalMessageId;
+
+  // Reply subject
+  const subject = /^re:/i.test(originalSubject)
+    ? originalSubject
+    : `Re: ${originalSubject}`;
+
+  const raw = buildRfc2822Message({
+    to: [originalFrom],
+    cc: opts.cc,
+    bcc: opts.bcc,
+    subject,
+    threadSubject: subject,
+    body: opts.body,
+    inReplyTo: originalMessageId,
+    references,
+  });
+
+  return { raw, threadId };
+}
+
+export async function createDraft(opts: DraftOptions): Promise<DraftResult> {
+  const gmail = getGmailClient();
+  const raw = buildRfc2822Message({
+    to: opts.to,
+    cc: opts.cc,
+    bcc: opts.bcc,
+    subject: opts.subject,
+    body: opts.body,
+  });
+
+  const res = await gmail.users.drafts.create({
+    userId: "me",
+    requestBody: {
+      message: { raw: base64urlEncode(raw) },
+    },
+  });
+
+  return {
+    id: res.data.id!,
+    messageId: res.data.message?.id || "",
+    threadId: res.data.message?.threadId || undefined,
+  };
+}
+
+export async function createReplyDraft(opts: ReplyDraftOptions): Promise<DraftResult> {
+  const gmail = getGmailClient();
+  const { raw, threadId } = await buildReplyMessage(gmail, opts);
+
+  const res = await gmail.users.drafts.create({
+    userId: "me",
+    requestBody: {
+      message: {
+        raw: base64urlEncode(raw),
+        threadId,
+      },
+    },
+  });
+
+  return {
+    id: res.data.id!,
+    messageId: res.data.message?.id || "",
+    threadId: res.data.message?.threadId || undefined,
+  };
+}
+
+export async function sendMessage(opts: DraftOptions): Promise<SendResult> {
+  const gmail = getGmailClient();
+  const raw = buildRfc2822Message({
+    to: opts.to,
+    cc: opts.cc,
+    bcc: opts.bcc,
+    subject: opts.subject,
+    body: opts.body,
+  });
+
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: base64urlEncode(raw),
+    },
+  });
+
+  return {
+    messageId: res.data.id || "",
+    threadId: res.data.threadId || undefined,
+  };
+}
+
+export async function sendReply(opts: ReplyDraftOptions): Promise<SendResult> {
+  const gmail = getGmailClient();
+  const { raw, threadId } = await buildReplyMessage(gmail, opts);
+
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: base64urlEncode(raw),
+      threadId,
+    },
+  });
+
+  return {
+    messageId: res.data.id || "",
+    threadId: res.data.threadId || undefined,
+  };
+}
+
 // ─── Label modification ──────────────────────────────────────────────
 
 export async function createLabel(name: string): Promise<{ id: string; name: string }> {

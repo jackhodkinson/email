@@ -40,7 +40,9 @@ export {
 } from "./sync.ts";
 
 export {
+  createDraft,
   createLabel,
+  createReplyDraft,
   downloadAttachment,
   getEmail,
   getHistory,
@@ -49,13 +51,19 @@ export {
   getProfile,
   getThread,
   modifyLabels,
+  sendMessage,
+  sendReply,
   searchEmails,
   searchThreads,
   type AttachmentInfo,
+  type DraftOptions,
+  type DraftResult,
   type EmailSummary,
   type HistoryEvent,
   type ParsedMessageFull,
   type ParsedMessageMetadata,
+  type ReplyDraftOptions,
+  type SendResult,
 } from "./gmail.ts";
 
 export { parseGmailQuery, type ParsedQuery } from "./query.ts";
