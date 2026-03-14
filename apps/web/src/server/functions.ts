@@ -197,15 +197,32 @@ export const getSidebarCounts = createServerFn({ method: "GET" }).handler(
     const db = core.getDb();
     return {
       inbox: core.countMessages(db, { labelFilter: "INBOX", unread: true }),
-      primary: core.countMessages(db, { labelFilter: "CATEGORY_PERSONAL" }),
+      primary: core.countMessages(db, {
+        labelFilter: "CATEGORY_PERSONAL",
+        unread: true,
+      }),
       promotions: core.countMessages(db, {
         labelFilter: "CATEGORY_PROMOTIONS",
+        unread: true,
       }),
-      social: core.countMessages(db, { labelFilter: "CATEGORY_SOCIAL" }),
-      updates: core.countMessages(db, { labelFilter: "CATEGORY_UPDATES" }),
-      forums: core.countMessages(db, { labelFilter: "CATEGORY_FORUMS" }),
+      social: core.countMessages(db, {
+        labelFilter: "CATEGORY_SOCIAL",
+        unread: true,
+      }),
+      updates: core.countMessages(db, {
+        labelFilter: "CATEGORY_UPDATES",
+        unread: true,
+      }),
+      forums: core.countMessages(db, {
+        labelFilter: "CATEGORY_FORUMS",
+        unread: true,
+      }),
       unread: core.countMessages(db, { labelFilter: "INBOX", unread: true }),
-      starred: core.countMessages(db, { labelFilter: "INBOX", starred: true }),
+      starred: core.countMessages(db, {
+        labelFilter: "INBOX",
+        starred: true,
+        unread: true,
+      }),
     };
   },
 );
