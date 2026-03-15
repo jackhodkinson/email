@@ -589,6 +589,24 @@ export async function modifyLabels(
   });
 }
 
+// ─── Read status ─────────────────────────────────────────────────────
+
+export async function markAsRead(messageId: string): Promise<void> {
+  await modifyLabels(messageId, [], ["UNREAD"]);
+}
+
+export async function markAsUnread(messageId: string): Promise<void> {
+  await modifyLabels(messageId, ["UNREAD"], []);
+}
+
+export async function removeFromInbox(messageId: string): Promise<void> {
+  await modifyLabels(messageId, [], ["INBOX"]);
+}
+
+export async function addToInbox(messageId: string): Promise<void> {
+  await modifyLabels(messageId, ["INBOX"], []);
+}
+
 // ─── Sync API functions ──────────────────────────────────────────────
 
 export async function getProfile(): Promise<{

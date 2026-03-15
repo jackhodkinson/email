@@ -1,9 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getThreadedInboxEmails,
   searchThreadedInboxEmails,
+  setReadStatus,
+  removeFromInboxAction,
+  addToInboxAction,
 } from "../server/functions";
 import { ComposeSheet } from "../components/compose-sheet";
 import { EmailSplitView } from "../components/email-split-view";
@@ -16,6 +19,7 @@ import {
   prefetchAdjacent,
   prefetchEmailDetail,
 } from "../lib/query";
+import { useMutation } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/email/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -87,6 +91,21 @@ function EmailDetailPage() {
   const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
 
+  // Optimistic read-status overrides so the list updates instantly
+  const [readOverrides, setReadOverrides] = useState<Map<string, boolean>>(
+    () => new Map(),
+  );
+  const displayThreads = useMemo(
+    () =>
+      readOverrides.size === 0
+        ? threads
+        : threads.map((t) => {
+            const override = readOverrides.get(t.id);
+            return override !== undefined ? { ...t, isRead: override } : t;
+          }),
+    [threads, readOverrides],
+  );
+
   // Fetch email detail from cache (instant if prefetched) or network.
   // `placeholderData: keepPreviousData` keeps the previous email visible
   // while the next one loads — no blank flash.
@@ -102,6 +121,121 @@ function EmailDetailPage() {
     enabled: !!threadId,
     placeholderData: (prev) => prev,
   });
+
+  const readMutation = useMutation({
+    mutationFn: async (vars: { messageId: string; isRead: boolean }) => {
+      const result = await setReadStatus({ data: vars });
+      window.dispatchEvent(new Event("sidebar-counts-changed"));
+      return result;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["email", "detail", vars.messageId] });
+      if (threadId) {
+        queryClient.invalidateQueries({ queryKey: ["email", "thread", threadId] });
+      }
+    },
+  });
+
+  const handleToggleRead = useCallback(
+    (messageId: string, isRead: boolean) => {
+      setReadOverrides((prev) => new Map(prev).set(messageId, isRead));
+      readMutation.mutate({ messageId, isRead });
+    },
+    [readMutation],
+  );
+
+  // Track archived message IDs so they disappear from the list instantly
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(() => new Set());
+  const visibleThreads = useMemo(
+    () =>
+      archivedIds.size === 0
+        ? displayThreads
+        : displayThreads.filter((t) => !archivedIds.has(t.id)),
+    [displayThreads, archivedIds],
+  );
+
+  const lastArchivedRef = useRef<string | null>(null);
+
+  const archiveMutation = useMutation({
+    mutationFn: async (vars: { messageId: string }) => {
+      const result = await removeFromInboxAction({ data: vars });
+      window.dispatchEvent(new Event("sidebar-counts-changed"));
+      return result;
+    },
+  });
+
+  const unarchiveMutation = useMutation({
+    mutationFn: async (vars: { messageId: string }) => {
+      const result = await addToInboxAction({ data: vars });
+      window.dispatchEvent(new Event("sidebar-counts-changed"));
+      return result;
+    },
+  });
+
+  const handleRemoveFromInbox = useCallback(
+    (messageId: string) => {
+      // Navigate to the next email in the list before removing
+      const currentIdx = visibleThreads.findIndex((t) => t.id === messageId);
+      const nextEmail =
+        visibleThreads[currentIdx + 1] ?? visibleThreads[currentIdx - 1];
+
+      lastArchivedRef.current = messageId;
+      setArchivedIds((prev) => new Set(prev).add(messageId));
+      archiveMutation.mutate({ messageId });
+
+      if (nextEmail) {
+        navigate({
+          to: "/email/$id",
+          params: { id: nextEmail.id },
+          search: {
+            q: query,
+            threads: threadsOnly || undefined,
+            category,
+            compose,
+            replyTo,
+          },
+        });
+      } else {
+        navigate({
+          to: "/",
+          search: {
+            q: query,
+            threads: threadsOnly || undefined,
+            category,
+            compose: undefined,
+            replyTo: undefined,
+          },
+        });
+      }
+    },
+    [archiveMutation, category, compose, navigate, query, replyTo, threadsOnly, visibleThreads],
+  );
+
+  const handleUndoArchive = useCallback(() => {
+    const messageId = lastArchivedRef.current;
+    if (!messageId) return;
+
+    lastArchivedRef.current = null;
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(messageId);
+      return next;
+    });
+    unarchiveMutation.mutate({ messageId });
+
+    // Navigate back to the restored email
+    navigate({
+      to: "/email/$id",
+      params: { id: messageId },
+      search: {
+        q: query,
+        threads: threadsOnly || undefined,
+        category,
+        compose,
+        replyTo,
+      },
+    });
+  }, [category, compose, navigate, query, replyTo, threadsOnly, unarchiveMutation]);
 
   const handleSelectEmail = useCallback(
     (id: string) => {
@@ -224,7 +358,7 @@ function EmailDetailPage() {
     <div className="h-full flex flex-col overflow-hidden">
       <main className="flex-1 min-h-0 overflow-hidden">
         <EmailSplitView
-          emails={threads}
+          emails={visibleThreads}
           selectedEmailId={selectedId}
           email={emailDetail ?? null}
           threadEmails={threadEmails ?? null}
@@ -237,6 +371,9 @@ function EmailDetailPage() {
           onToggleThreadsOnly={handleToggleThreadsOnly}
           onComposeNew={handleComposeNew}
           onComposeReply={handleComposeReply}
+          onToggleRead={handleToggleRead}
+          onRemoveFromInbox={handleRemoveFromInbox}
+          onUndoArchive={handleUndoArchive}
         />
       </main>
       {composeOpen && (

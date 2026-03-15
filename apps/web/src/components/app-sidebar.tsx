@@ -1,16 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useMatches } from "@tanstack/react-router";
 import {
+  Archive,
+  ChevronRight,
   Inbox,
   Mail,
   Tag,
   Users,
   Bell,
   MessagesSquare,
-  MailOpen,
   Star,
 } from "lucide-react";
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -20,9 +26,11 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,19 +38,16 @@ import { getSidebarCounts } from "@/server/functions";
 
 type SidebarCounts = Awaited<ReturnType<typeof getSidebarCounts>>;
 
-const categoryItems = [
+const inboxCategories = [
   { title: "Primary", category: "primary", icon: Mail },
   { title: "Promotions", category: "promotions", icon: Tag },
   { title: "Social", category: "social", icon: Users },
   { title: "Updates", category: "updates", icon: Bell },
   { title: "Forums", category: "forums", icon: MessagesSquare },
-  { title: "Unread", category: "unread", icon: MailOpen },
-  { title: "Starred", category: "starred", icon: Star },
 ];
 
 export function AppSidebar() {
   const matches = useMatches();
-  const currentPath = matches[matches.length - 1]?.fullPath ?? "/";
   const search = matches[matches.length - 1]?.search as
     | { category?: string }
     | undefined;
@@ -62,8 +67,9 @@ export function AppSidebar() {
     };
   }, [fetchCounts]);
 
-  const isInboxActive =
-    currentPath === "/" && !activeCategory;
+  const isInboxCategoryActive = inboxCategories.some(
+    (item) => item.category === activeCategory,
+  );
 
   return (
     <Sidebar collapsible="icon">
@@ -86,55 +92,98 @@ export function AppSidebar() {
           <SidebarGroupLabel>Mail</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <Collapsible defaultOpen className="group/collapsible">
+                <SidebarMenuItem>
+                  <div className="flex items-center">
+                    <CollapsibleTrigger className="flex items-center justify-center size-6 shrink-0 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground">
+                      <ChevronRight className="size-3.5 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                    </CollapsibleTrigger>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={!activeCategory || isInboxCategoryActive}
+                      tooltip="Inbox"
+                      className="flex-1"
+                    >
+                      <Link to="/" search={{ q: undefined, threads: undefined, category: undefined }}>
+                        <Inbox />
+                        <span className="flex-1">Inbox</span>
+                        {counts && counts.inbox > 0 && (
+                          <span className="text-xs tabular-nums text-sidebar-foreground/70">
+                            {counts.inbox}
+                          </span>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </div>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {inboxCategories.map((item) => (
+                        <SidebarMenuSubItem key={item.category}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={activeCategory === item.category}
+                          >
+                            <Link
+                              to="/"
+                              search={{ category: item.category, q: undefined, threads: undefined }}
+                            >
+                              <item.icon />
+                              <span className="flex-1">{item.title}</span>
+                              {counts &&
+                                counts[item.category as keyof SidebarCounts] > 0 && (
+                                  <span className="text-xs tabular-nums text-sidebar-foreground/70">
+                                    {counts[item.category as keyof SidebarCounts]}
+                                  </span>
+                                )}
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={isInboxActive}
-                  tooltip="Inbox"
+                  isActive={activeCategory === "starred"}
+                  tooltip="Starred"
                 >
-                  <Link to="/" search={{ q: undefined, threads: undefined, category: undefined }}>
-                    <Inbox />
-                    <span>Inbox</span>
+                  <Link
+                    to="/"
+                    search={{ category: "starred", q: undefined, threads: undefined }}
+                  >
+                    <Star />
+                    <span className="flex-1">Starred</span>
+                    {counts && counts.starred > 0 && (
+                      <span className="text-xs tabular-nums text-sidebar-foreground/70">
+                        {counts.starred}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
-                {counts && counts.inbox > 0 && (
-                  <SidebarMenuBadge>{counts.inbox}</SidebarMenuBadge>
-                )}
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={activeCategory === "archive"}
+                  tooltip="Archive"
+                >
+                  <Link
+                    to="/"
+                    search={{ category: "archive", q: undefined, threads: undefined }}
+                  >
+                    <Archive />
+                    <span>Archive</span>
+                  </Link>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Categories</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {categoryItems.map((item) => (
-                <SidebarMenuItem key={item.category}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={activeCategory === item.category}
-                    tooltip={item.title}
-                  >
-                    <Link
-                      to="/"
-                      search={{ category: item.category, q: undefined, threads: undefined }}
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                  {counts &&
-                    counts[item.category as keyof SidebarCounts] > 0 && (
-                      <SidebarMenuBadge>
-                        {counts[item.category as keyof SidebarCounts]}
-                      </SidebarMenuBadge>
-                    )}
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        </SidebarContent>
+      </SidebarContent>
       <SidebarFooter>
         <ThemeToggle />
       </SidebarFooter>

@@ -190,38 +190,46 @@ export const getSidebarCounts = createServerFn({ method: "GET" }).handler(
         social: 0,
         updates: 0,
         forums: 0,
-        unread: 0,
         starred: 0,
       };
 
     const db = core.getDb();
+    const inboxFilter = {
+      extraWhere: {
+        clauses: [
+          "EXISTS (SELECT 1 FROM message_labels ml_inbox WHERE ml_inbox.message_id = m.message_id AND ml_inbox.label_id = 'INBOX')",
+        ],
+        params: [] as any[],
+      },
+    };
     return {
       inbox: core.countMessages(db, { labelFilter: "INBOX", unread: true }),
       primary: core.countMessages(db, {
         labelFilter: "CATEGORY_PERSONAL",
         unread: true,
+        ...inboxFilter,
       }),
       promotions: core.countMessages(db, {
         labelFilter: "CATEGORY_PROMOTIONS",
         unread: true,
+        ...inboxFilter,
       }),
       social: core.countMessages(db, {
         labelFilter: "CATEGORY_SOCIAL",
         unread: true,
+        ...inboxFilter,
       }),
       updates: core.countMessages(db, {
         labelFilter: "CATEGORY_UPDATES",
         unread: true,
+        ...inboxFilter,
       }),
       forums: core.countMessages(db, {
         labelFilter: "CATEGORY_FORUMS",
         unread: true,
       }),
-      unread: core.countMessages(db, { labelFilter: "INBOX", unread: true }),
       starred: core.countMessages(db, {
-        labelFilter: "INBOX",
         starred: true,
-        unread: true,
       }),
     };
   },
@@ -307,8 +315,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   updates: "CATEGORY_UPDATES",
   forums: "CATEGORY_FORUMS",
   unread: "INBOX",
-  starred: "INBOX",
+  starred: "STARRED",
 };
+
+/** Categories that are subsets of inbox — views and counts require INBOX label */
+const INBOX_SCOPED_CATEGORIES = new Set([
+  "primary",
+  "promotions",
+  "social",
+  "updates",
+]);
 
 export type CategoryKey = keyof typeof CATEGORY_LABELS;
 
@@ -327,33 +343,38 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
     if (!isReady) return { threads: [], accountId: null };
 
     const db = core.getDb();
-    const labelFilter =
-      data.category && data.category in CATEGORY_LABELS
+
+    const isArchive = data.category === "archive";
+    const labelFilter = isArchive
+      ? undefined
+      : data.category && data.category in CATEGORY_LABELS
         ? CATEGORY_LABELS[data.category]
         : "INBOX";
+
+    const extraClauses: string[] = [];
+    const extraParams: any[] = [];
+
+    if (data.category && INBOX_SCOPED_CATEGORIES.has(data.category)) {
+      extraClauses.push(
+        "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'INBOX')",
+      );
+    }
+    if (isArchive) {
+      extraClauses.push(
+        "NOT EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'INBOX')",
+      );
+    }
+    if (data.category === "unread") {
+      extraClauses.push(
+        "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'UNREAD')",
+      );
+    }
     const rows = core.queryThreads(db, {
       labelFilter,
       maxResults: data.limit || 50,
       ...(data.threadsOnly ? { minThreadCount: 2 } : {}),
-      ...(data.category === "unread"
-        ? {
-            extraWhere: {
-              clauses: [
-                "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'UNREAD')",
-              ],
-              params: [],
-            },
-          }
-        : {}),
-      ...(data.category === "starred"
-        ? {
-            extraWhere: {
-              clauses: [
-                "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'STARRED')",
-              ],
-              params: [],
-            },
-          }
+      ...(extraClauses.length > 0
+        ? { extraWhere: { clauses: extraClauses, params: extraParams } }
         : {}),
     });
 
@@ -591,6 +612,60 @@ export const sendEmailAction = createServerFn({ method: "POST" })
       body: data.body,
     });
     return { messageId: result.messageId, threadId: result.threadId };
+  });
+
+export const setReadStatus = createServerFn({ method: "POST" })
+  .inputValidator((data: { messageId: string; isRead: boolean }) => data)
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    const db = core.getDb();
+
+    if (data.isRead) {
+      await core.markAsRead(data.messageId);
+      core.removeLabels(db, data.messageId, ["UNREAD"]);
+    } else {
+      await core.markAsUnread(data.messageId);
+      core.addLabels(db, data.messageId, ["UNREAD"]);
+    }
+
+    return { success: true };
+  });
+
+export const removeFromInboxAction = createServerFn({ method: "POST" })
+  .inputValidator((data: { messageId: string }) => data)
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    await core.removeFromInbox(data.messageId);
+    const db = core.getDb();
+    core.removeLabels(db, data.messageId, ["INBOX"]);
+
+    return { success: true };
+  });
+
+export const addToInboxAction = createServerFn({ method: "POST" })
+  .inputValidator((data: { messageId: string }) => data)
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    await core.addToInbox(data.messageId);
+    const db = core.getDb();
+    core.addLabels(db, data.messageId, ["INBOX"]);
+
+    return { success: true };
   });
 
 export const downloadAttachment = createServerFn({ method: "GET" })

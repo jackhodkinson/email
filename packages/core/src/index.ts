@@ -6,6 +6,7 @@ export {
 } from "./auth.ts";
 
 export {
+  addLabels,
   cacheBody,
   cacheBodyBatch,
   countMessages,
@@ -16,6 +17,7 @@ export {
   getMessageById,
   getSyncState,
   queryThreads,
+  removeLabels,
   resolveLabelName,
   resolveShortId,
   saveIdMap,
@@ -44,9 +46,13 @@ export {
   createLabel,
   createReplyDraft,
   downloadAttachment,
+  addToInbox,
   getEmail,
   getHistory,
   getMessageFull,
+  markAsRead,
+  markAsUnread,
+  removeFromInbox,
   getMessageMetadata,
   getProfile,
   getThread,

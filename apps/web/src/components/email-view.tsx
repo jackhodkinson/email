@@ -3,7 +3,7 @@ import { EmailContent } from "./email-content";
 import { EmailAddressChip } from "./email-address-chip";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
-import { Reply } from "lucide-react";
+import { Archive, Mail, MailOpen, Reply } from "lucide-react";
 
 interface EmailViewProps {
   email: {
@@ -19,6 +19,8 @@ interface EmailViewProps {
     labels: string[];
   };
   onReply?: (messageId: string) => void;
+  onToggleRead?: (messageId: string, isRead: boolean) => void;
+  onRemoveFromInbox?: (messageId: string) => void;
   shouldAutoFocus?: boolean;
   onAutoFocusComplete?: () => void;
 }
@@ -26,6 +28,8 @@ interface EmailViewProps {
 export function EmailView({
   email,
   onReply,
+  onToggleRead,
+  onRemoveFromInbox,
   shouldAutoFocus = false,
   onAutoFocusComplete,
 }: EmailViewProps) {
@@ -54,15 +58,37 @@ export function EmailView({
           <h1 className="heading-page">
             {email.subject || "(no subject)"}
           </h1>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onReply?.(email.id)}
-          >
-            <Reply />
-            Reply
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onRemoveFromInbox?.(email.id)}
+              title="Remove from inbox"
+            >
+              <Archive />
+              Archive
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onToggleRead?.(email.id, !email.isRead)}
+              title={email.isRead ? "Mark as unread" : "Mark as read"}
+            >
+              {email.isRead ? <Mail /> : <MailOpen />}
+              {email.isRead ? "Mark unread" : "Mark read"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onReply?.(email.id)}
+            >
+              <Reply />
+              Reply
+            </Button>
+          </div>
         </div>
 
         <div className="email-meta space-y-1">

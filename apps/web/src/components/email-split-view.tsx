@@ -60,6 +60,9 @@ interface EmailSplitViewProps {
   onToggleThreadsOnly: () => void;
   onComposeNew: () => void;
   onComposeReply: (messageId: string) => void;
+  onToggleRead?: (messageId: string, isRead: boolean) => void;
+  onRemoveFromInbox?: (messageId: string) => void;
+  onUndoArchive?: () => void;
 }
 
 function isFocusableElement(el: HTMLElement | null): boolean {
@@ -98,6 +101,9 @@ export function EmailSplitView({
   onToggleThreadsOnly,
   onComposeNew,
   onComposeReply,
+  onToggleRead,
+  onRemoveFromInbox,
+  onUndoArchive,
 }: EmailSplitViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -245,6 +251,20 @@ export function EmailSplitView({
   useHotkey("/", () => runCommand("focusSearch"), listHotkeyOptions);
   useHotkey("Escape", () => runCommand("goToInbox"), listHotkeyOptions);
 
+  const archiveSelected = useCallback(() => {
+    const id = selectedEmailId ?? emails[resolvedSelectedIndex]?.id;
+    if (id) onRemoveFromInbox?.(id);
+  }, [emails, onRemoveFromInbox, resolvedSelectedIndex, selectedEmailId]);
+
+  useHotkey("e", archiveSelected, listHotkeyOptions);
+  useHotkey("e", archiveSelected, viewerHotkeyOptions);
+
+  const undoHotkeyOptions = useMemo(
+    () => ({ enabled: activeSurface !== "none" }),
+    [activeSurface],
+  );
+  useHotkey("Meta+z", () => onUndoArchive?.(), undoHotkeyOptions);
+
   useHotkey("ArrowLeft", () => runCommand("focusEmailList"), viewerHotkeyOptions);
   useHotkey("Escape", () => runCommand("goToInbox"), viewerHotkeyOptions);
   useHotkeySequence(["g", "i"], () => runCommand("goToInbox"), {
@@ -320,6 +340,8 @@ export function EmailSplitView({
           <EmailView
             email={email}
             onReply={onComposeReply}
+            onToggleRead={onToggleRead}
+            onRemoveFromInbox={onRemoveFromInbox}
             shouldAutoFocus={pendingViewerFocus && activeSurface === "viewer"}
             onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
           />
