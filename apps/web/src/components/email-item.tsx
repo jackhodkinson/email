@@ -1,5 +1,6 @@
 import { forwardRef, memo } from "react";
 import { cn } from "@/lib/utils";
+import { formatRelativeDate } from "@/lib/date";
 
 interface EmailItemProps {
   id: string;
@@ -32,7 +33,7 @@ export const EmailItem = memo(
         className={cn(
           "email-item",
           isSelected && "email-item--selected",
-          !email.isRead && !isSelected && "email-item--unread",
+          !email.isRead && "email-item--unread",
         )}
         onClick={() => onSelectEmail?.(email.id)}
         onMouseEnter={() => onHoverEmail?.(email.id)}
@@ -65,7 +66,7 @@ export const EmailItem = memo(
           {/* Date and thread count */}
           <div className="flex flex-col items-end gap-1">
             <div className="email-item__date">
-              {formatDate(email.date)}
+              {formatRelativeDate(email.date)}
             </div>
             {threadCount && threadCount > 1 && (
               <span className="badge">
@@ -90,31 +91,3 @@ function formatSender(sender: string): string {
   return match ? match[1].trim() : sender;
 }
 
-// Format timestamp for display
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp * 1000);
-  const now = new Date();
-
-  // Today: show time
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
-  // This year: show month and day
-  if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-  }
-
-  // Older: show full date
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}

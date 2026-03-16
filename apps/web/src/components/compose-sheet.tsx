@@ -4,14 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 import { parseEmailAddress } from "./email-address-chip";
 import { sendEmailAction } from "../server/functions";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "./ui/dialog";
 import { useRouter } from "@tanstack/react-router";
 
@@ -56,6 +55,7 @@ export function ComposeSheet({
   const [to, setTo] = useState(mode === "reply" ? toReplyAddress(replySender) : "");
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
   const [subject, setSubject] = useState(
     mode === "reply" ? toReplySubject(replySubject) : "",
   );
@@ -105,88 +105,122 @@ export function ComposeSheet({
     [bcc, body, canSend, cc, isReply, onOpenChange, replyToMessageId, router, subject, to],
   );
 
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        if (canSend) {
+          const form = (event.target as HTMLElement).closest("form");
+          form?.requestSubmit();
+        }
+      }
+    },
+    [canSend],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
-        <DialogHeader className="space-y-1 border-b px-4 py-3">
+      <DialogContent className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 top-0 left-0 rounded-none border-none gap-0 p-0 flex flex-col" showCloseButton={false}>
+        <DialogHeader className="sr-only">
           <DialogTitle>{isReply ? "Reply" : "New message"}</DialogTitle>
-          <DialogDescription>
-            {isReply
-              ? "Reply is threaded automatically from the selected message."
-              : "Send a text email from your connected Gmail account."}
-          </DialogDescription>
+          <DialogDescription>Compose an email</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSend} className="flex max-h-[85vh] min-h-0 flex-col">
-          <div className="flex-1 space-y-3 overflow-auto p-4">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">To</span>
-              <Input
+        <form onSubmit={handleSend} onKeyDown={handleKeyDown} className="flex flex-1 min-h-0 flex-col">
+          <div className="flex flex-1 min-h-0 flex-col overflow-auto">
+            {/* To field */}
+            <label className="compose-field">
+              <span className="compose-field__label">To</span>
+              <input
                 value={to}
                 onChange={(event) => setTo(event.target.value)}
-                placeholder="alice@example.com, bob@example.com"
+                placeholder="Recipients"
                 autoFocus
                 readOnly={isReply}
+                className="compose-field__input"
               />
+              {!showCcBcc && (
+                <button
+                  type="button"
+                  onClick={() => setShowCcBcc(true)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2"
+                >
+                  Cc Bcc
+                </button>
+              )}
             </label>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Cc</span>
-              <Input
-                value={cc}
-                onChange={(event) => setCc(event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
+            {/* Cc field */}
+            {showCcBcc && (
+              <label className="compose-field">
+                <span className="compose-field__label">Cc</span>
+                <input
+                  value={cc}
+                  onChange={(event) => setCc(event.target.value)}
+                  className="compose-field__input"
+                />
+              </label>
+            )}
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Bcc</span>
-              <Input
-                value={bcc}
-                onChange={(event) => setBcc(event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
+            {/* Bcc field */}
+            {showCcBcc && (
+              <label className="compose-field">
+                <span className="compose-field__label">Bcc</span>
+                <input
+                  value={bcc}
+                  onChange={(event) => setBcc(event.target.value)}
+                  className="compose-field__input"
+                />
+              </label>
+            )}
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Subject</span>
-              <Input
+            {/* Subject field */}
+            <label className="compose-field">
+              <span className="compose-field__label">Subject</span>
+              <input
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
-                placeholder="(no subject)"
+                placeholder="Subject"
                 readOnly={isReply}
+                className="compose-field__input"
               />
             </label>
 
-            <label className="flex min-h-0 flex-1 flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Message</span>
+            {/* Body */}
+            <div className="flex-1 min-h-0 flex flex-col">
               <textarea
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
-                placeholder={isReply ? "Write your reply..." : "Write your message..."}
-                className="min-h-[220px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                placeholder={isReply ? "Write your reply..." : ""}
+                className="compose-body"
               />
-            </label>
+            </div>
 
             {error && (
-              <p className="text-sm text-destructive" role="alert">
+              <p className="text-sm text-destructive px-4 py-2" role="alert">
                 {error}
               </p>
             )}
           </div>
 
-          <DialogFooter className="border-t p-4">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={isSending}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSend}>
-              {isSending ? "Sending..." : "Send"}
-            </Button>
+          <DialogFooter className="border-t border-border px-4 py-3 flex-row items-center justify-between sm:justify-between">
+            <span className="text-xs text-muted-foreground">
+              {navigator.platform?.includes("Mac") ? "\u2318" : "Ctrl"}+Enter to send
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isSending}
+                onClick={() => onOpenChange(false)}
+              >
+                Discard
+              </Button>
+              <Button type="submit" size="sm" disabled={!canSend}>
+                {isSending ? "Sending..." : "Send"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

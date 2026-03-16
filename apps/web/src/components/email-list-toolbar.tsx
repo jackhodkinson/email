@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { MessagesSquare, RefreshCw, SquarePen } from "lucide-react";
 import { syncAccount } from "../server/functions";
 import { Button } from "./ui/button";
@@ -19,6 +20,7 @@ export function EmailListToolbar({
   onComposeNew,
 }: EmailListToolbarProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const syncing$ = useObservable(false);
   const syncing = useValue(syncing$);
 
@@ -26,11 +28,14 @@ export function EmailListToolbar({
     syncing$.set(true);
     try {
       await syncAccount({ data: { accountId } });
+      // Invalidate the React Query inbox cache so ensureQueryData in the
+      // /email/$id loader actually refetches instead of returning stale data.
+      await queryClient.invalidateQueries({ queryKey: ["email", "inbox"] });
       await router.invalidate();
     } finally {
       syncing$.set(false);
     }
-  }, [accountId, router]);
+  }, [accountId, queryClient, router]);
 
   return (
     <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-b border-border flex-shrink-0">

@@ -1,9 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { EmailContent } from "./email-content";
-import { EmailAddressChip } from "./email-address-chip";
-import { Separator } from "./ui/separator";
+import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
 import { Button } from "./ui/button";
-import { Archive, Mail, MailOpen, Reply } from "lucide-react";
+import { Archive, ChevronDown, Mail, MailOpen, Maximize2, Minimize2, Paperclip, Reply } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatRelativeDate } from "@/lib/date";
 
 interface EmailViewProps {
   email: {
@@ -23,6 +24,8 @@ interface EmailViewProps {
   onRemoveFromInbox?: (messageId: string) => void;
   shouldAutoFocus?: boolean;
   onAutoFocusComplete?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export function EmailView({
@@ -32,6 +35,8 @@ export function EmailView({
   onRemoveFromInbox,
   shouldAutoFocus = false,
   onAutoFocusComplete,
+  isFullscreen = false,
+  onToggleFullscreen,
 }: EmailViewProps) {
   const setRootRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -43,6 +48,12 @@ export function EmailView({
     [onAutoFocusComplete, shouldAutoFocus],
   );
 
+  const [showDetails, setShowDetails] = useState(false);
+  const { name: senderName, email: senderEmail } = parseEmailAddress(email.sender);
+  const senderInitial = senderName.charAt(0).toUpperCase();
+
+  const recipientsSummary = formatRecipients(email.recipients);
+
   return (
     <div
       ref={setRootRef}
@@ -52,94 +63,108 @@ export function EmailView({
       data-message-focus
       data-message-focus-initial
     >
-      {/* Email metadata */}
-      <div className="panel-header space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <h1 className="heading-page">
-            {email.subject || "(no subject)"}
-          </h1>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onRemoveFromInbox?.(email.id)}
-              title="Remove from inbox"
-            >
-              <Archive />
-              Archive
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onToggleRead?.(email.id, !email.isRead)}
-              title={email.isRead ? "Mark as unread" : "Mark as read"}
-            >
-              {email.isRead ? <Mail /> : <MailOpen />}
-              {email.isRead ? "Mark unread" : "Mark read"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onReply?.(email.id)}
-            >
-              <Reply />
-              Reply
-            </Button>
-          </div>
+      {/* Subject + actions */}
+      <div className="email-detail-header">
+        <h1 className="email-detail-subject">
+          {email.subject || "(no subject)"}
+        </h1>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onRemoveFromInbox?.(email.id)}
+            title="Archive (e)"
+          >
+            <Archive />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onToggleRead?.(email.id, !email.isRead)}
+            title={email.isRead ? "Mark unread" : "Mark read"}
+          >
+            {email.isRead ? <Mail /> : <MailOpen />}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onReply?.(email.id)}
+            title="Reply (r)"
+          >
+            <Reply />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? "Exit full screen" : "Full screen"}
+          >
+            {isFullscreen ? <Minimize2 /> : <Maximize2 />}
+          </Button>
         </div>
+      </div>
 
-        <div className="email-meta space-y-1">
-          <div className="email-meta__row">
-            <span className="email-meta__label">From:</span>
-            <span>
-              <EmailAddressChip raw={email.sender} />
+      {/* Sender-centric header */}
+      <div className="email-detail-sender">
+        <div className="avatar">{senderInitial}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="email-detail-sender__name" title={senderEmail}>
+              {senderName}
+            </span>
+            <span className="email-detail-sender__date">
+              {email.hasAttachments && (
+                <Paperclip className="inline-block mr-1.5 h-3 w-3 text-muted-foreground" />
+              )}
+              {formatRelativeDate(email.date)}
             </span>
           </div>
+          {recipientsSummary && (
+            <button
+              type="button"
+              className="thread-msg__recipients-toggle"
+              onClick={() => setShowDetails((prev) => !prev)}
+            >
+              to {recipientsSummary}
+              <ChevronDown className={cn(
+                "inline-block h-3 w-3 ml-0.5 transition-transform",
+                showDetails && "rotate-180",
+              )} />
+            </button>
+          )}
+        </div>
+      </div>
 
+      {/* Full sender/recipient details */}
+      {showDetails && (
+        <div className="thread-msg__details">
+          <div className="thread-msg__detail-row">
+            <span className="thread-msg__detail-label">From</span>
+            <span><EmailAddressChip raw={email.sender} /></span>
+          </div>
           {email.recipients.length > 0 && (
-            <div className="email-meta__row">
-              <span className="email-meta__label">To:</span>
-              <span>
+            <div className="thread-msg__detail-row">
+              <span className="thread-msg__detail-label">To</span>
+              <span className="flex flex-wrap gap-x-1">
                 {email.recipients.map((r, i) => (
                   <span key={r}>
                     <EmailAddressChip raw={r} />
-                    {i < email.recipients.length - 1 && ", "}
+                    {i < email.recipients.length - 1 && ","}
                   </span>
                 ))}
               </span>
             </div>
           )}
-
-          <div className="email-meta__row">
-            <span className="email-meta__label">Date:</span>
+          <div className="thread-msg__detail-row">
+            <span className="thread-msg__detail-label">Date</span>
             <span>{formatFullDate(email.date)}</span>
           </div>
         </div>
-
-        {email.hasAttachments && (
-          <div className="email-attachment-hint">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-            <span>Has attachments</span>
-          </div>
-        )}
-      </div>
-
-      <Separator />
+      )}
 
       {/* Email body */}
       <div className="panel-body flex-1 min-h-0 overflow-auto">
@@ -147,6 +172,13 @@ export function EmailView({
       </div>
     </div>
   );
+}
+
+function formatRecipients(recipients: string[]): string {
+  if (recipients.length === 0) return "";
+  const names = recipients.map((r) => parseEmailAddress(r).name);
+  if (names.length <= 2) return names.join(", ");
+  return `${names[0]}, ${names[1]}, +${names.length - 2}`;
 }
 
 function formatFullDate(timestamp: number): string {

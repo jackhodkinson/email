@@ -668,6 +668,34 @@ export const addToInboxAction = createServerFn({ method: "POST" })
     return { success: true };
   });
 
+export const getContactsList = createServerFn({ method: "GET" })
+  .inputValidator(
+    (data: { query?: string; sort?: string; dir?: string }) => data,
+  )
+  .handler(async ({ data }) => {
+    const core = await getCore();
+    const isReady = await ensureSynced(core);
+    if (!isReady) return { contacts: [] as Array<{ email: string; name: string; messageCount: number; threadCount: number; lastContactDate: number; firstContactDate: number }> };
+
+    const db = core.getDb();
+    const contacts = core.queryContacts(db, {
+      query: data.query,
+      sort: data.sort as any,
+      dir: data.dir as any,
+    });
+
+    return {
+      contacts: contacts.map((c) => ({
+        email: c.email,
+        name: c.name,
+        messageCount: c.messageCount,
+        threadCount: c.threadCount,
+        lastContactDate: toUnixSecondsFromMs(c.lastContactDate),
+        firstContactDate: toUnixSecondsFromMs(c.firstContactDate),
+      })),
+    };
+  });
+
 export const downloadAttachment = createServerFn({ method: "GET" })
   .inputValidator((data: { emailId: string; attachmentId: string }) => data)
   .handler(async ({ data }) => {

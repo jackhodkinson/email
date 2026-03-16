@@ -3,6 +3,7 @@ import { Link, useMatches } from "@tanstack/react-router";
 import {
   Archive,
   ChevronRight,
+  Contact,
   Inbox,
   Mail,
   Tag,
@@ -67,6 +68,10 @@ export function AppSidebar() {
     };
   }, [fetchCounts]);
 
+  const isContactsRoute = matches.some(
+    (m) => m.routeId === "/contacts",
+  );
+
   const isInboxCategoryActive = inboxCategories.some(
     (item) => item.category === activeCategory,
   );
@@ -95,12 +100,12 @@ export function AppSidebar() {
               <Collapsible defaultOpen className="group/collapsible">
                 <SidebarMenuItem>
                   <div className="flex items-center">
-                    <CollapsibleTrigger className="flex items-center justify-center size-6 shrink-0 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground">
+                    <CollapsibleTrigger className="flex items-center justify-center size-6 shrink-0 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden">
                       <ChevronRight className="size-3.5 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                     </CollapsibleTrigger>
                     <SidebarMenuButton
                       asChild
-                      isActive={!activeCategory || isInboxCategoryActive}
+                      isActive={!isContactsRoute && (!activeCategory || isInboxCategoryActive)}
                       tooltip="Inbox"
                       className="flex-1"
                     >
@@ -177,6 +182,19 @@ export function AppSidebar() {
                   >
                     <Archive />
                     <span>Archive</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isContactsRoute}
+                  tooltip="Contacts"
+                >
+                  <Link to="/contacts" search={{ q: undefined, sort: undefined, dir: undefined }}>
+                    <Contact />
+                    <span>Contacts</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

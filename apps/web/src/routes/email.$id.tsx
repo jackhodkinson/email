@@ -1,9 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getThreadedInboxEmails,
-  searchThreadedInboxEmails,
   setReadStatus,
   removeFromInboxAction,
   addToInboxAction,
@@ -13,6 +11,7 @@ import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
 import { useSearchBox } from "../lib/search-context";
 import {
+  inboxQueryOptions,
   emailDetailQueryOptions,
   threadEmailsQueryOptions,
   getQueryClient,
@@ -38,58 +37,57 @@ export const Route = createFileRoute("/email/$id")({
     q: search.q,
     threads: search.threads,
     category: search.category,
-    compose: search.compose,
-    replyTo: search.replyTo,
   }),
   loader: async ({ params, deps }) => {
     const queryClient = getQueryClient();
+    const inboxOpts = {
+      query: deps.q,
+      threadsOnly: !!deps.threads,
+      category: deps.category,
+    };
 
-    const inbox = await (deps.q
-      ? searchThreadedInboxEmails({ data: { query: deps.q } })
-      : getThreadedInboxEmails({
-          data: { threadsOnly: !!deps.threads, category: deps.category },
-        }));
+    // ensureQueryData returns cached data instantly when fresh (within
+    // staleTime), so this only blocks on the very first load or when search
+    // params change.  Rapid j/k navigation never re-fetches.
+    const inbox = await queryClient.ensureQueryData(
+      inboxQueryOptions(inboxOpts),
+    );
 
-    // Warm the query cache — returns cached data if fresh, fetches otherwise.
-    // This does NOT block navigation; the component reads from cache via useQuery.
+    // Non-blocking prefetches for the selected + adjacent emails
     queryClient.prefetchQuery(emailDetailQueryOptions(params.id));
-
-    // Prefetch adjacent emails so j/k navigation feels instant
     const emailIds = inbox.threads.map((t) => t.id);
     const selectedIdx = emailIds.indexOf(params.id);
     if (selectedIdx >= 0) {
       prefetchAdjacent(queryClient, emailIds, selectedIdx);
     }
 
-    return {
-      selectedId: params.id,
-      threads: inbox.threads,
-      accountId: inbox.accountId,
-      query: deps.q,
-      threadsOnly: !!deps.threads,
-      category: deps.category,
-      compose: deps.compose,
-      replyTo: deps.replyTo,
-    };
+    return { accountId: inbox.accountId };
   },
   component: EmailDetailPage,
   notFoundComponent: NotFound,
 });
 
 function EmailDetailPage() {
-  const {
-    selectedId,
-    threads,
-    accountId,
-    query,
-    threadsOnly,
-    category,
-    compose,
-    replyTo,
-  } = Route.useLoaderData();
+  const { accountId } = Route.useLoaderData();
+  const { id: selectedId } = Route.useParams();
+  const search = Route.useSearch();
+  const query = search.q;
+  const threadsOnly = !!search.threads;
+  const category = search.category;
+  const compose = search.compose;
+  const replyTo = search.replyTo;
   const navigate = useNavigate();
   const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
+
+  // Inbox list lives in React Query so it survives route transitions.
+  // The loader seeds the cache; this hook reads from it (instant) and
+  // keeps the previous list visible while a background refetch runs.
+  const { data: inboxData } = useQuery({
+    ...inboxQueryOptions({ query, threadsOnly, category }),
+    placeholderData: (prev) => prev,
+  });
+  const threads = inboxData?.threads ?? [];
 
   // Optimistic read-status overrides so the list updates instantly
   const [readOverrides, setReadOverrides] = useState<Map<string, boolean>>(
@@ -121,6 +119,21 @@ function EmailDetailPage() {
     enabled: !!threadId,
     placeholderData: (prev) => prev,
   });
+
+  // When the inbox shows a thread has changed (new reply → different
+  // threadCount or date), invalidate the cached thread emails so the
+  // detail view picks up the new message.
+  const inboxThread = threads.find((t) => t.threadId === threadId);
+  const inboxThreadKey = inboxThread
+    ? `${inboxThread.threadCount}:${inboxThread.date}`
+    : null;
+  useEffect(() => {
+    if (threadId && inboxThreadKey) {
+      queryClient.invalidateQueries({
+        queryKey: ["email", "thread", threadId],
+      });
+    }
+  }, [threadId, inboxThreadKey, queryClient]);
 
   const readMutation = useMutation({
     mutationFn: async (vars: { messageId: string; isRead: boolean }) => {
@@ -346,7 +359,8 @@ function EmailDetailPage() {
     [category, navigate, query, selectedId, threadsOnly],
   );
 
-  const composeOpen = compose === "new" || compose === "reply";
+  const composeOpen = compose === "new";
+  const isInlineReply = compose === "reply" && !!replyTo;
   const replyEmail =
     compose === "reply" && replyTo
       ? threadEmails?.find((item) => item.id === replyTo) ??
@@ -381,16 +395,23 @@ function EmailDetailPage() {
           onToggleRead={handleToggleRead}
           onRemoveFromInbox={handleRemoveFromInbox}
           onUndoArchive={handleUndoArchive}
+          replyTo={
+            isInlineReply && replyEmail
+              ? {
+                  messageId: replyTo!,
+                  sender: replyEmail.sender,
+                  subject: replyEmail.subject,
+                }
+              : null
+          }
+          onCloseReply={() => handleComposeOpenChange(false)}
         />
       </main>
       {composeOpen && (
         <ComposeSheet
-          key={`${compose}:${replyTo ?? "none"}`}
+          key="compose-new"
           open={composeOpen}
-          mode={compose}
-          replyToMessageId={compose === "reply" ? replyTo : undefined}
-          replySender={replyEmail?.sender}
-          replySubject={replyEmail?.subject}
+          mode="new"
           onOpenChange={handleComposeOpenChange}
         />
       )}

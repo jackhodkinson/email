@@ -59,7 +59,7 @@ export function EmailList({
       role="listbox"
       aria-label="Email messages"
       aria-activedescendant={selectedId}
-      tabIndex={0}
+      tabIndex={-1}
       className="email-list flex-1 min-h-0 overflow-auto"
     >
       {emails.length === 0 ? (

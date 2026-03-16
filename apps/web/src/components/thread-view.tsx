@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minimize2 } from "lucide-react";
 import { ThreadMessage } from "./thread-message";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -25,6 +25,8 @@ interface ThreadViewProps {
   selectedEmailId?: string | null;
   shouldAutoFocus?: boolean;
   onAutoFocusComplete?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export function ThreadView({
@@ -34,6 +36,8 @@ export function ThreadView({
   selectedEmailId,
   shouldAutoFocus = false,
   onAutoFocusComplete,
+  isFullscreen = false,
+  onToggleFullscreen,
 }: ThreadViewProps) {
   const initialFocusedEmail =
     emails.find((email) => email.id === selectedEmailId) ?? emails[0] ?? null;
@@ -134,20 +138,30 @@ export function ThreadView({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Thread subject and controls */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b">
-        <h1 className="text-sm font-medium text-muted-foreground truncate flex-1">
+      <div className="email-detail-header">
+        <h1 className="email-detail-subject">
           {subject || "(no subject)"}
         </h1>
-        {emails.length > 1 && (
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {emails.length > 1 && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={allExpanded ? collapseAll : expandAll}
+              title={allExpanded ? "Collapse all" : "Expand all"}
+            >
+              {allExpanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
+            </Button>
+          )}
           <Button
             variant="ghost"
-            size="icon-xs"
-            onClick={allExpanded ? collapseAll : expandAll}
-            title={allExpanded ? "Collapse all" : "Expand all"}
+            size="icon-sm"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? "Exit full screen" : "Full screen"}
           >
-            {allExpanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
+            {isFullscreen ? <Minimize2 /> : <Maximize2 />}
           </Button>
-        )}
+        </div>
       </div>
 
       <div ref={hotkeyScopeRef} className="flex-1 min-h-0">

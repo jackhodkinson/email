@@ -1,9 +1,9 @@
-import { memo, type Ref } from "react";
-import { Reply } from "lucide-react";
+import { memo, useState, type Ref } from "react";
+import { ChevronDown, Paperclip, Reply } from "lucide-react";
 import { EmailContent } from "./email-content";
 import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
-import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
+import { formatRelativeDate } from "@/lib/date";
 
 interface ThreadMessageProps {
   email: {
@@ -32,11 +32,19 @@ export const ThreadMessage = memo(function ThreadMessage({
   onReply,
   buttonRef,
 }: ThreadMessageProps) {
-  const senderName = formatSender(email.sender);
+  const [showDetails, setShowDetails] = useState(false);
+  const { name: senderName } = parseEmailAddress(email.sender);
   const senderInitial = senderName.charAt(0).toUpperCase();
+  const recipientNames = email.recipients.map(
+    (r) => parseEmailAddress(r).name,
+  );
+  const recipientsSummary =
+    recipientNames.length <= 2
+      ? recipientNames.join(", ")
+      : `${recipientNames[0]}, ${recipientNames[1]}, +${recipientNames.length - 2}`;
 
   return (
-    <div className="thread-msg" data-message-root>
+    <div className="thread-msg group" data-message-root>
       {/* Collapsed header - always visible */}
       <button
         ref={buttonRef}
@@ -55,7 +63,7 @@ export const ThreadMessage = memo(function ThreadMessage({
 
           {/* Sender and snippet */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-baseline gap-2">
               <span
                 className={cn(
                   "text-body text-truncate",
@@ -64,8 +72,26 @@ export const ThreadMessage = memo(function ThreadMessage({
               >
                 {senderName}
               </span>
-              <span className="text-caption whitespace-nowrap">
-                {formatDate(email.date)}
+              {isExpanded && recipientsSummary && (
+                <span
+                  className="thread-msg__recipients-toggle"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDetails((prev) => !prev);
+                  }}
+                >
+                  to {recipientsSummary}
+                  <ChevronDown className={cn(
+                    "inline-block h-3 w-3 ml-0.5 transition-transform",
+                    showDetails && "rotate-180",
+                  )} />
+                </span>
+              )}
+              <span className="text-caption whitespace-nowrap ml-auto flex items-center gap-1">
+                {email.hasAttachments && (
+                  <Paperclip className="inline-block h-3 w-3" />
+                )}
+                {formatRelativeDate(email.date)}
               </span>
             </div>
             {!isExpanded && (
@@ -75,126 +101,60 @@ export const ThreadMessage = memo(function ThreadMessage({
             )}
           </div>
 
-          {/* Expand/collapse icon */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={cn(
-              "flex-shrink-0 text-muted transition-transform",
-              isExpanded && "rotate-180",
-            )}
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+          {/* Reply — inline in the header row */}
+          {isExpanded && (
+            <div
+              className="thread-msg__reply-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReply?.(email.id);
+              }}
+              role="button"
+              tabIndex={-1}
+              title="Reply (r)"
+            >
+              <Reply className="h-4 w-4" />
+            </div>
+          )}
         </div>
       </button>
+
+      {/* Full sender/recipient details */}
+      {isExpanded && showDetails && (
+        <div className="thread-msg__details">
+          <div className="thread-msg__detail-row">
+            <span className="thread-msg__detail-label">From</span>
+            <span><EmailAddressChip raw={email.sender} /></span>
+          </div>
+          {email.recipients.length > 0 && (
+            <div className="thread-msg__detail-row">
+              <span className="thread-msg__detail-label">To</span>
+              <span className="flex flex-wrap gap-x-1">
+                {email.recipients.map((r, i) => (
+                  <span key={r}>
+                    <EmailAddressChip raw={r} />
+                    {i < email.recipients.length - 1 && ","}
+                  </span>
+                ))}
+              </span>
+            </div>
+          )}
+          <div className="thread-msg__detail-row">
+            <span className="thread-msg__detail-label">Date</span>
+            <span>{formatFullDate(email.date)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Expanded content */}
       {isExpanded && (
         <div className="thread-msg__body">
-          <div className="mb-4 flex justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onReply?.(email.id)}
-            >
-              <Reply />
-              Reply
-            </Button>
-          </div>
-
-          {/* Email metadata */}
-          <div className="email-meta space-y-1 mb-4">
-            <div className="email-meta__row">
-              <span className="email-meta__label">From:</span>
-              <span>
-                <EmailAddressChip raw={email.sender} />
-              </span>
-            </div>
-
-            {email.recipients.length > 0 && (
-              <div className="email-meta__row">
-                <span className="email-meta__label">To:</span>
-                <span>
-                  {email.recipients.map((r, i) => (
-                    <span key={r}>
-                      <EmailAddressChip raw={r} />
-                      {i < email.recipients.length - 1 && ", "}
-                    </span>
-                  ))}
-                </span>
-              </div>
-            )}
-
-            <div className="email-meta__row">
-              <span className="email-meta__label">Date:</span>
-              <span>{formatFullDate(email.date)}</span>
-            </div>
-          </div>
-
-          {email.hasAttachments && (
-            <div className="email-attachment-hint mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
-              <span>Has attachments</span>
-            </div>
-          )}
-
-          {/* Email body */}
           <EmailContent bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
         </div>
       )}
     </div>
   );
 });
-
-function formatSender(sender: string): string {
-  return parseEmailAddress(sender).name;
-}
-
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp * 1000);
-  const now = new Date();
-
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
-  if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-  }
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function formatFullDate(timestamp: number): string {
   const date = new Date(timestamp * 1000);

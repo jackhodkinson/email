@@ -8,6 +8,7 @@ import { EmailList } from "./email-list";
 import { EmailListToolbar } from "./email-list-toolbar";
 import { EmailView } from "./email-view";
 import { ThreadView } from "./thread-view";
+import { ReplyPanel } from "./reply-panel";
 import { useCommands } from "@/lib/commands/use-commands";
 
 interface EmailSummary {
@@ -63,6 +64,12 @@ interface EmailSplitViewProps {
   onToggleRead?: (messageId: string, isRead: boolean) => void;
   onRemoveFromInbox?: (messageId: string) => void;
   onUndoArchive?: () => void;
+  replyTo?: {
+    messageId: string;
+    sender: string | null;
+    subject: string | null;
+  } | null;
+  onCloseReply?: () => void;
 }
 
 function isFocusableElement(el: HTMLElement | null): boolean {
@@ -104,13 +111,18 @@ export function EmailSplitView({
   onToggleRead,
   onRemoveFromInbox,
   onUndoArchive,
+  replyTo,
+  onCloseReply,
 }: EmailSplitViewProps) {
+  const listFocusRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const state$ = useObservable({
     localSelectedIndex: -1,
     activeSurface: "none" as "none" | "list" | "viewer",
+    lastActiveSurface: "list" as "list" | "viewer",
     pendingViewerFocus: false,
+    isFullscreen: false,
   });
 
   const findViewerFocusTarget = useCallback((viewer: HTMLElement) => {
@@ -123,58 +135,93 @@ export function EmailSplitView({
   const localSelectedIndex = useValue(() => state$.localSelectedIndex.get());
   const activeSurface = useValue(() => state$.activeSurface.get());
   const pendingViewerFocus = useValue(() => state$.pendingViewerFocus.get());
+  const isFullscreen = useValue(() => state$.isFullscreen.get());
 
-  const resolvedSelectedIndex = useMemo(() => {
-    if (selectedEmailId) {
-      const index = emails.findIndex((item) => item.id === selectedEmailId);
-      return index;
-    }
-    return localSelectedIndex;
-  }, [emails, localSelectedIndex, selectedEmailId]);
-
-  // Sync localSelectedIndex when selectedEmailId changes (from URL navigation)
-  const prevSelectedIdRef = useRef(selectedEmailId);
-  if (selectedEmailId !== prevSelectedIdRef.current) {
-    prevSelectedIdRef.current = selectedEmailId;
-    if (selectedEmailId) {
-      const index = emails.findIndex((item) => item.id === selectedEmailId);
-      if (index >= 0) {
-        state$.localSelectedIndex.set(index);
-      }
-    }
-  }
-
-  useEffect(() => {
-    if (document.activeElement === document.body) {
-      listRef.current?.focus({ preventScroll: true });
-    }
+  const toggleFullscreen = useCallback(() => {
+    state$.isFullscreen.set((prev) => !prev);
   }, []);
 
+  // URL-derived index is the source of truth when selectedEmailId is present.
+  // localSelectedIndex is only used as a brief optimistic override so the list
+  // highlights the new row immediately, before the router delivers the new URL.
+  const urlSelectedIndex = useMemo(() => {
+    if (!selectedEmailId) return -1;
+    return emails.findIndex((item) => item.id === selectedEmailId);
+  }, [emails, selectedEmailId]);
+
+  const resolvedSelectedIndex =
+    localSelectedIndex >= 0 &&
+    localSelectedIndex < emails.length &&
+    urlSelectedIndex !== localSelectedIndex
+      ? localSelectedIndex
+      : urlSelectedIndex;
+
+  // Clear the optimistic override once the URL catches up
   useEffect(() => {
+    if (urlSelectedIndex >= 0 && localSelectedIndex === urlSelectedIndex) {
+      state$.localSelectedIndex.set(-1);
+    }
+  }, [urlSelectedIndex, localSelectedIndex]);
+
+  // Root focus sentinel: if focus ever lands on <body> (dialog closed, overlay
+  // dismissed, etc.) reclaim it for the split view. A rAF delay lets overlays
+  // finish their own focus cleanup first so we don't fight them.
+  useEffect(() => {
+    let rafId = 0;
+
     const handleFocusIn = () => {
+      cancelAnimationFrame(rafId);
       const active = document.activeElement;
-      if (active && listRef.current?.contains(active)) {
+
+      if (active && listFocusRef.current?.contains(active)) {
         state$.activeSurface.set("list");
+        state$.lastActiveSurface.set("list");
         return;
       }
       if (active && viewerRef.current?.contains(active)) {
         state$.activeSurface.set("viewer");
+        state$.lastActiveSurface.set("viewer");
         if (active !== viewerRef.current) {
           state$.pendingViewerFocus.set(false);
         }
         return;
       }
+
+      if (active === document.body) {
+        // Defer so dialog/overlay teardown settles first
+        rafId = requestAnimationFrame(() => {
+          if (document.activeElement !== document.body) return;
+          // Don't reclaim if an overlay is still mounted
+          if (document.querySelector("[data-slot='dialog-overlay']")) return;
+          const last = state$.lastActiveSurface.get();
+          if (last === "viewer" && viewerRef.current) {
+            viewerRef.current.focus({ preventScroll: true });
+          } else if (listFocusRef.current) {
+            listFocusRef.current.focus({ preventScroll: true });
+          }
+        });
+        return;
+      }
+
       state$.pendingViewerFocus.set(false);
       state$.activeSurface.set("none");
     };
 
     document.addEventListener("focusin", handleFocusIn);
-    handleFocusIn();
-    return () => document.removeEventListener("focusin", handleFocusIn);
+
+    // Initial mount: claim focus if nothing else has it
+    if (document.activeElement === document.body) {
+      listFocusRef.current?.focus({ preventScroll: true });
+    }
+
+    return () => {
+      document.removeEventListener("focusin", handleFocusIn);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const focusList = useCallback(() => {
-    listRef.current?.focus({ preventScroll: true });
+    listFocusRef.current?.focus({ preventScroll: true });
     state$.activeSurface.set("list");
   }, []);
 
@@ -234,7 +281,7 @@ export function EmailSplitView({
   );
 
   const listHotkeyOptions = useMemo(
-    () => ({ target: listRef, enabled: activeSurface === "list" }),
+    () => ({ target: listFocusRef, enabled: activeSurface === "list" }),
     [activeSurface],
   );
   const viewerHotkeyOptions = useMemo(
@@ -265,8 +312,26 @@ export function EmailSplitView({
   );
   useHotkey("Meta+z", () => onUndoArchive?.(), undoHotkeyOptions);
 
+  useHotkey("c", onComposeNew, listHotkeyOptions);
+  useHotkey("c", onComposeNew, viewerHotkeyOptions);
+
+  const replyToSelected = useCallback(() => {
+    const id = selectedEmailId ?? emails[resolvedSelectedIndex]?.id;
+    if (id) onComposeReply(id);
+  }, [emails, onComposeReply, resolvedSelectedIndex, selectedEmailId]);
+
+  useHotkey("r", replyToSelected, listHotkeyOptions);
+  useHotkey("r", replyToSelected, viewerHotkeyOptions);
+
   useHotkey("ArrowLeft", () => runCommand("focusEmailList"), viewerHotkeyOptions);
-  useHotkey("Escape", () => runCommand("goToInbox"), viewerHotkeyOptions);
+  useHotkey("Escape", () => {
+    if (state$.isFullscreen.get()) {
+      state$.isFullscreen.set(false);
+    } else {
+      runCommand("goToInbox");
+    }
+  }, viewerHotkeyOptions);
+  useHotkey("f", toggleFullscreen, viewerHotkeyOptions);
   useHotkeySequence(["g", "i"], () => runCommand("goToInbox"), {
     enabled: activeSurface !== "none",
     timeout: 1000,
@@ -275,7 +340,7 @@ export function EmailSplitView({
   const handleListPointerDown = useCallback((event: ReactPointerEvent) => {
     const target = event.target as HTMLElement | null;
     if (isFocusableElement(target)) return;
-    listRef.current?.focus({ preventScroll: true });
+    listFocusRef.current?.focus({ preventScroll: true });
     state$.activeSurface.set("list");
   }, []);
 
@@ -297,13 +362,17 @@ export function EmailSplitView({
     [focusViewer],
   );
 
+  const isReplying = !!replyTo;
+
   return (
-    <div className="flex h-full w-full flex-col md:flex-row p-2 space-x-2">
+    <div className="flex h-full w-full flex-col md:flex-row p-2 gap-2">
       <section
+        ref={listFocusRef}
+        tabIndex={0}
         onPointerDownCapture={handleListPointerDown}
-        className="md:w-[360px] md:flex-shrink-0 h-1/2 md:h-full min-h-0"
+        className={`md:w-[360px] md:flex-shrink-0 h-1/2 md:h-full min-h-0 outline-none ${isFullscreen ? "hidden" : ""}`}
       >
-        <div className="h-full min-h-0 w-full border border-border rounded-md overflow-hidden flex flex-col">
+        <div className="h-full min-h-0 w-full rounded-lg overflow-hidden flex flex-col bg-card border border-border/50">
           <EmailListToolbar
             accountId={accountId}
             threadsOnly={threadsOnly}
@@ -325,34 +394,57 @@ export function EmailSplitView({
         tabIndex={0}
         aria-label="Email viewer"
         onPointerDownCapture={handleViewerPointerDown}
-        className="email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 border-border border rounded-md"
+        className={
+          isFullscreen
+            ? "email-viewer fixed inset-0 z-50 bg-background"
+            : "email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 rounded-lg border border-border/50 flex flex-col"
+        }
       >
-        {threadEmails && threadEmails.length > 1 ? (
-          <ThreadView
-            emails={threadEmails}
-            subject={email?.subject ?? null}
-            onReply={onComposeReply}
-            selectedEmailId={selectedEmailId ?? email?.id ?? null}
-            shouldAutoFocus={pendingViewerFocus && activeSurface === "viewer"}
-            onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
-          />
-        ) : email ? (
-          <EmailView
-            email={email}
-            onReply={onComposeReply}
-            onToggleRead={onToggleRead}
-            onRemoveFromInbox={onRemoveFromInbox}
-            shouldAutoFocus={pendingViewerFocus && activeSurface === "viewer"}
-            onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
-          />
-        ) : (
-          <div className="empty-state">
-            <div className="text-center space-y-2">
-              <p className="text-body text-muted">Select an email to preview</p>
-              <p className="text-caption">
-                Use left/right arrows to move focus.
-              </p>
+        <div className="flex-1 min-h-0">
+          {threadEmails && threadEmails.length > 1 ? (
+            <ThreadView
+              emails={threadEmails}
+              subject={email?.subject ?? null}
+              onReply={onComposeReply}
+              selectedEmailId={selectedEmailId ?? email?.id ?? null}
+              shouldAutoFocus={!isReplying && pendingViewerFocus && activeSurface === "viewer"}
+              onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+            />
+          ) : email ? (
+            <EmailView
+              email={email}
+              onReply={onComposeReply}
+              onToggleRead={onToggleRead}
+              onRemoveFromInbox={onRemoveFromInbox}
+              shouldAutoFocus={!isReplying && pendingViewerFocus && activeSurface === "viewer"}
+              onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+            />
+          ) : (
+            <div className="empty-state">
+              <div className="text-center space-y-2">
+                <p className="text-body text-muted">Select an email to preview</p>
+                <p className="text-caption">
+                  Use left/right arrows to move focus.
+                </p>
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Inline reply — renders at bottom of viewer */}
+        {replyTo && onCloseReply && (
+          <div className="border-t border-border/50">
+            <ReplyPanel
+              key={replyTo.messageId}
+              replyToMessageId={replyTo.messageId}
+              replySender={replyTo.sender}
+              replySubject={replyTo.subject}
+              onClose={onCloseReply}
+            />
           </div>
         )}
       </section>

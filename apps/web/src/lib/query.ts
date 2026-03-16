@@ -1,5 +1,10 @@
 import { queryOptions, QueryClient } from "@tanstack/react-query";
-import { getEmailById, getThreadEmails } from "../server/functions";
+import {
+  getEmailById,
+  getThreadEmails,
+  getThreadedInboxEmails,
+  searchThreadedInboxEmails,
+} from "../server/functions";
 
 /** How many emails at the top of the list to eagerly prefetch on load. */
 export const PREFETCH_BATCH_SIZE = 5;
@@ -16,6 +21,34 @@ const EMAIL_STALE_TIME = 10 * 60 * 1000;
 // ---------------------------------------------------------------------------
 // Query option factories
 // ---------------------------------------------------------------------------
+
+/** Inbox list staleTime — 30 s is long enough to survive rapid j/k navigation. */
+const INBOX_STALE_TIME = 30_000;
+
+export function inboxQueryOptions(opts: {
+  query?: string;
+  threadsOnly?: boolean;
+  category?: string;
+}) {
+  return queryOptions({
+    queryKey: [
+      "email",
+      "inbox",
+      { q: opts.query, threads: !!opts.threadsOnly, category: opts.category },
+    ],
+    queryFn: () =>
+      opts.query
+        ? searchThreadedInboxEmails({ data: { query: opts.query } })
+        : getThreadedInboxEmails({
+            data: {
+              threadsOnly: !!opts.threadsOnly,
+              category: opts.category,
+            },
+          }),
+    staleTime: INBOX_STALE_TIME,
+    gcTime: 5 * 60 * 1000,
+  });
+}
 
 export function emailDetailQueryOptions(emailId: string) {
   return queryOptions({

@@ -170,9 +170,10 @@ code {
 @layer components {
   /* ── Typography ─────────────────────────────────────────── */
   .heading-page {
-    font-size: 1.25rem;
-    line-height: 1.75rem;
-    font-weight: 600;
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
   }
 
   .text-body {
@@ -252,21 +253,26 @@ code {
     width: 100%;
     min-width: 0;
     overflow: hidden;
-    border-bottom: 1px solid var(--border);
-    padding: 0.75rem 1rem;
+    border-bottom: 1px solid oklch(from var(--border) l c h / 0.5);
+    padding: 0.625rem 1rem;
     cursor: pointer;
     transition: background-color 150ms ease;
   }
+  .email-item:hover:not(.email-item--selected) {
+    background-color: oklch(from var(--muted) l c h / 0.3);
+  }
+  .email-item--unread {
+    padding-left: 1.5rem;
+  }
   .email-item--selected {
     border-radius: var(--radius-md);
-    background-color: oklch(from var(--muted) l c h / 0.7);
+    background-color: oklch(from var(--muted) l c h / 0.6);
   }
   .email-list:focus-within .email-item--selected {
-    background-color: oklch(from var(--primary) l c h / 0.12);
-    box-shadow: inset 0 0 0 1px oklch(from var(--primary) l c h / 0.35);
+    background-color: oklch(from var(--primary) l c h / 0.1);
   }
   .email-list:not(:focus-within) .email-item--selected {
-    box-shadow: inset 0 0 0 1px oklch(from var(--border) l c h / 0.75);
+    background-color: oklch(from var(--muted) l c h / 0.5);
   }
 
   .email-item__sender {
@@ -289,7 +295,7 @@ code {
   }
 
   .email-item__snippet {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     line-height: 1.25rem;
     color: var(--muted-foreground);
     overflow: hidden;
@@ -306,9 +312,8 @@ code {
 
   .unread-dot {
     position: absolute;
-    left: 0.25rem;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 0.5rem;
+    top: calc(0.75rem + 0.375rem);
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 9999px;
@@ -329,20 +334,51 @@ code {
     border-radius: 9999px;
   }
 
-  /* ── Email Meta (shared between email-view & thread-message) */
-  .email-meta {
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-  }
-  .email-meta__row {
+  /* ── Email Detail (sender-centric header) ─────────────── */
+  .email-detail-header {
     display: flex;
-    gap: 0.5rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem 0;
+    flex-shrink: 0;
   }
-  .email-meta__label {
+  .email-detail-subject {
+    font-size: 1.125rem;
+    line-height: 1.5rem;
     font-weight: 500;
-    color: var(--muted-foreground);
-    width: 3rem;
+    letter-spacing: -0.02em;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+  .email-detail-sender {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    flex-shrink: 0;
+  }
+  .email-detail-sender__name {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .email-detail-sender__date {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .email-detail-sender__recipients {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Email Address Chip ──────────────────────────────────── */
   .email-address-chip {
     all: unset;
     cursor: pointer;
@@ -375,10 +411,15 @@ code {
     border-bottom: 1px solid var(--border);
   }
   .panel-body {
-    padding: 1rem 1.5rem;
+    padding: 1rem 1.25rem;
   }
 
   /* ── Email content (prose) ─────────────────────────────── */
+  .email-content .prose {
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
+  }
   .email-content .prose p {
     margin-top: 0;
     margin-bottom: 0.75em;
@@ -444,36 +485,93 @@ code {
     border-radius: var(--radius-lg);
   }
   .email-view:focus-within {
-    outline: 2px solid oklch(from var(--primary) l c h / 0.6);
+    outline: 2px solid oklch(from var(--primary) l c h / 0.4);
     outline-offset: -2px;
   }
+  .email-viewer.fixed .email-view:focus-within {
+    outline: none;
+  }
   .thread-msg {
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: var(--radius-lg);
     overflow: hidden;
-    transition: border-color 150ms ease, box-shadow 150ms ease;
+    transition: border-color 200ms ease, background-color 200ms ease;
+  }
+  .thread-msg:hover {
+    border-color: oklch(from var(--border) l c h / 0.8);
   }
   .thread-msg:focus-within {
-    border-color: oklch(from var(--primary) l c h / 0.6);
-    box-shadow: 0 0 0 2px oklch(from var(--primary) l c h / 0.6);
+    border-color: oklch(from var(--primary) l c h / 0.4);
   }
   .thread-msg__header {
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 1rem;
     text-align: left;
     transition: background-color 150ms ease;
     &:hover {
-      background-color: oklch(from var(--muted) l c h / 0.5);
+      background-color: oklch(from var(--muted) l c h / 0.35);
     }
     &:focus-visible {
       outline: none;
     }
   }
   .thread-msg__header--expanded {
-    border-bottom: 1px solid var(--border);
+    background-color: oklch(from var(--muted) l c h / 0.2);
+  }
+  .thread-msg__reply-btn {
+    flex-shrink: 0;
+    padding: 0.375rem;
+    border-radius: var(--radius-md);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 150ms ease, background-color 150ms ease, color 150ms ease;
+  }
+  .thread-msg__reply-btn:hover {
+    background-color: var(--muted);
+    color: var(--foreground);
+  }
+  .thread-msg:hover .thread-msg__reply-btn,
+  .thread-msg:focus-within .thread-msg__reply-btn {
+    opacity: 1;
+  }
+  .thread-msg__recipients-toggle {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 0.25rem;
+    padding: 0 0.25rem;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .thread-msg__recipients-toggle:hover {
+    background-color: var(--muted);
+    color: var(--foreground);
+  }
+  .thread-msg__details {
+    padding: 0.5rem 1.25rem;
+    border-bottom: 1px solid oklch(from var(--border) l c h / 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+  }
+  .thread-msg .thread-msg__details {
+    padding-left: 3.75rem;
+  }
+  .thread-msg__detail-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .thread-msg__detail-label {
+    color: var(--muted-foreground);
+    width: 2.5rem;
+    flex-shrink: 0;
   }
   .thread-msg__body {
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
   }
 
   .avatar {
@@ -657,6 +755,117 @@ code {
     color: var(--primary);
     &:hover {
       text-decoration: underline;
+    }
+  }
+
+  /* ── Contact table ────────────────────────────────────── */
+  .contact-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  .contact-table__th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.5rem 1rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    background-color: var(--background);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .contact-table__row {
+    cursor: pointer;
+    transition: background-color 150ms ease;
+  }
+  .contact-table__row:hover {
+    background-color: oklch(from var(--muted) l c h / 0.5);
+  }
+  .contact-table__td {
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  /* ── Compose ─────────────────────────────────────────── */
+  .compose-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    padding: 0 1rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+  }
+  .compose-field__label {
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+    width: 3.5rem;
+  }
+  .compose-field__input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--foreground);
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+  }
+  /* ── Reply panel (inline at bottom of viewer) ───────────── */
+  .reply-panel {
+    padding: 0.5rem 1.25rem 0.75rem;
+  }
+  .reply-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .reply-panel__body {
+    width: 100%;
+    padding: 0.5rem 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 0.875rem;
+    line-height: 1.625;
+    color: var(--foreground);
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+  }
+  .reply-panel__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.5rem;
+  }
+
+  .compose-body {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    padding: 1rem;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 0.875rem;
+    line-height: 1.625;
+    color: var(--foreground);
+    &::placeholder {
+      color: var(--muted-foreground);
     }
   }
 

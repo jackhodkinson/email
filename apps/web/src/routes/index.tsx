@@ -1,16 +1,16 @@
 import { useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   getThreadedInboxEmails,
   searchThreadedInboxEmails,
 } from "../server/functions";
+import { inboxQueryOptions } from "../lib/query";
 import { ComposeSheet } from "../components/compose-sheet";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
 import { useSearchBox } from "../lib/search-context";
 import {
-  emailDetailQueryOptions,
   getQueryClient,
   prefetchBatch,
   prefetchEmailDetail,
@@ -59,8 +59,19 @@ export const Route = createFileRoute("/")({
           replyTo: deps.replyTo,
         };
 
-    // Eagerly prefetch the first N email bodies so the first click is instant
+    // Seed React Query cache so navigating to /email/$id has instant inbox data
     const queryClient = getQueryClient();
+    const inboxOpts = {
+      query: deps.q,
+      threadsOnly: !!deps.threads,
+      category: deps.category,
+    };
+    queryClient.setQueryData(inboxQueryOptions(inboxOpts).queryKey, {
+      threads: result.threads,
+      accountId: result.accountId,
+    } as Awaited<ReturnType<(typeof inboxQueryOptions)["prototype"]["queryFn"]>>);
+
+    // Eagerly prefetch the first N email bodies so the first click is instant
     prefetchBatch(
       queryClient,
       result.threads.map((t) => t.id),
@@ -157,11 +168,7 @@ function InboxPage() {
     [category, navigate, query, threadsOnly],
   );
 
-  const composeOpen = compose === "new" || compose === "reply";
-  const { data: replyEmail } = useQuery({
-    ...emailDetailQueryOptions(replyTo ?? ""),
-    enabled: compose === "reply" && !!replyTo,
-  });
+  const composeOpen = compose === "new";
 
   const focusSearch = useCallback(() => {
     searchBoxRef.current?.focus();
@@ -189,12 +196,9 @@ function InboxPage() {
       </main>
       {composeOpen && (
         <ComposeSheet
-          key={`${compose}:${replyTo ?? "none"}`}
+          key="compose-new"
           open={composeOpen}
-          mode={compose}
-          replyToMessageId={compose === "reply" ? replyTo : undefined}
-          replySender={replyEmail?.sender}
-          replySubject={replyEmail?.subject}
+          mode="new"
           onOpenChange={handleComposeOpenChange}
         />
       )}
