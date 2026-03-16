@@ -607,6 +607,24 @@ export async function addToInbox(messageId: string): Promise<void> {
   await modifyLabels(messageId, ["INBOX"], []);
 }
 
+export async function removeThreadFromInbox(threadId: string): Promise<void> {
+  const gmail = getGmailClient();
+  await gmail.users.threads.modify({
+    userId: "me",
+    id: threadId,
+    requestBody: { removeLabelIds: ["INBOX"] },
+  });
+}
+
+export async function addThreadToInbox(threadId: string): Promise<void> {
+  const gmail = getGmailClient();
+  await gmail.users.threads.modify({
+    userId: "me",
+    id: threadId,
+    requestBody: { addLabelIds: ["INBOX"] },
+  });
+}
+
 // ─── Sync API functions ──────────────────────────────────────────────
 
 export async function getProfile(): Promise<{

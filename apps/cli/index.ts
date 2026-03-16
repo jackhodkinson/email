@@ -773,6 +773,103 @@ async function draft() {
   }
 }
 
+async function send() {
+  const flagArgs = args.slice(1);
+  let to: string | undefined;
+  let cc: string | undefined;
+  let bcc: string | undefined;
+  let subject: string | undefined;
+  let body: string | undefined;
+  let replyId: string | undefined;
+
+  for (let i = 0; i < flagArgs.length; i++) {
+    if (flagArgs[i] === "--to" && flagArgs[i + 1]) {
+      to = flagArgs[i + 1]!;
+      i++;
+    } else if (flagArgs[i] === "--cc" && flagArgs[i + 1]) {
+      cc = flagArgs[i + 1]!;
+      i++;
+    } else if (flagArgs[i] === "--bcc" && flagArgs[i + 1]) {
+      bcc = flagArgs[i + 1]!;
+      i++;
+    } else if ((flagArgs[i] === "-s" || flagArgs[i] === "--subject") && flagArgs[i + 1]) {
+      subject = flagArgs[i + 1]!;
+      i++;
+    } else if ((flagArgs[i] === "-b" || flagArgs[i] === "--body") && flagArgs[i + 1]) {
+      body = flagArgs[i + 1]!;
+      i++;
+    } else if ((flagArgs[i] === "-r" || flagArgs[i] === "--reply") && flagArgs[i + 1]) {
+      replyId = flagArgs[i + 1]!;
+      i++;
+    }
+  }
+
+  // Read body from stdin if not provided via flag and stdin is piped
+  if (!body && !process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk);
+    }
+    body = Buffer.concat(chunks).toString("utf-8").trim();
+  }
+
+  if (!body) {
+    console.error("Body is required. Use --body or pipe via stdin.");
+    process.exit(1);
+  }
+
+  if (replyId) {
+    // Reply mode — resolve short ID
+    let messageId: string | null = null;
+    const n = parseInt(replyId, 10);
+    const isPureNumber = !isNaN(n) && String(n) === replyId;
+
+    const db = getDb();
+
+    if (isPureNumber) {
+      const resolved = resolveShortId(db, `#${replyId}`);
+      if (resolved) messageId = resolved.messageId;
+    }
+    if (!messageId) {
+      const resolved = resolveShortId(db, replyId);
+      if (resolved) messageId = resolved.messageId;
+    }
+    if (!messageId) {
+      console.error(`Unknown email ID: ${replyId}\nRun 'cmail list' first, then use an ID from the output.`);
+      process.exit(1);
+    }
+
+    const { sendReply } = await import("./lib/gmail.ts");
+    const result = await sendReply({
+      messageId,
+      body,
+      cc: cc ? cc.split(",").map((s) => s.trim()) : undefined,
+      bcc: bcc ? bcc.split(",").map((s) => s.trim()) : undefined,
+    });
+    console.log(`Sent (reply) — id: ${result.messageId}`);
+  } else {
+    // New message mode
+    if (!to) {
+      console.error("--to is required for new messages.");
+      process.exit(1);
+    }
+    if (!subject) {
+      console.error("--subject is required for new messages.");
+      process.exit(1);
+    }
+
+    const { sendMessage } = await import("./lib/gmail.ts");
+    const result = await sendMessage({
+      to: to.split(",").map((s) => s.trim()),
+      cc: cc ? cc.split(",").map((s) => s.trim()) : undefined,
+      bcc: bcc ? bcc.split(",").map((s) => s.trim()) : undefined,
+      subject,
+      body,
+    });
+    console.log(`Sent — id: ${result.messageId}`);
+  }
+}
+
 function usage() {
   console.log(`cmail - Gmail in your terminal
 
@@ -811,6 +908,12 @@ Usage:
   cmail count -q "from:alice"    Count matching a query
   cmail tags list                List all labels
   cmail tags create <name>       Create a new label
+  cmail send --to a@b.com --subject "Hi" --body "Hello"
+                                  Send a new email
+  cmail send --reply 3 --body "Thanks!"
+                                  Reply to message #3
+  echo "body" | cmail send --to a@b.com -s "Subject"
+                                  Send with body from stdin
   cmail draft --to a@b.com --subject "Hi" --body "Hello"
                                   Create a new draft
   cmail draft --reply 3 --body "Thanks!"
@@ -907,6 +1010,9 @@ try {
       break;
     case "count":
       await count();
+      break;
+    case "send":
+      await send();
       break;
     case "draft":
       await draft();

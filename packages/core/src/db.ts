@@ -339,6 +339,27 @@ export function removeLabels(db: Database, messageId: string, labelIds: string[]
   }
 }
 
+export function removeThreadLabels(db: Database, threadId: string, labelIds: string[]): void {
+  const stmt = db.prepare(
+    "DELETE FROM message_labels WHERE message_id IN (SELECT message_id FROM messages WHERE thread_id = ?) AND label_id = ?"
+  );
+  for (const labelId of labelIds) {
+    stmt.run(threadId, labelId);
+  }
+}
+
+export function addThreadLabels(db: Database, threadId: string, labelIds: string[]): void {
+  const msgIds = db
+    .query("SELECT message_id FROM messages WHERE thread_id = ?")
+    .all(threadId) as { message_id: string }[];
+  const stmt = db.prepare("INSERT OR IGNORE INTO message_labels (message_id, label_id) VALUES (?, ?)");
+  for (const { message_id } of msgIds) {
+    for (const labelId of labelIds) {
+      stmt.run(message_id, labelId);
+    }
+  }
+}
+
 export function getMessageById(db: Database, messageId: string): StoredMessage | null {
   const row = db.query(`
     SELECT message_id, thread_id, snippet, subject, "from", "to", cc, date,

@@ -144,20 +144,23 @@ function EmailDetailPage() {
     [readMutation],
   );
 
-  // Track archived message IDs so they disappear from the list instantly
-  const [archivedIds, setArchivedIds] = useState<Set<string>>(() => new Set());
+  // Track archived thread IDs so they disappear from the list instantly.
+  // Keyed by threadId (not messageId) because the inbox list is thread-based —
+  // after archiving one message, a different message in the same thread could
+  // become the new representative, which would bypass a messageId-based filter.
+  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(() => new Set());
   const visibleThreads = useMemo(
     () =>
-      archivedIds.size === 0
+      archivedThreadIds.size === 0
         ? displayThreads
-        : displayThreads.filter((t) => !archivedIds.has(t.id)),
-    [displayThreads, archivedIds],
+        : displayThreads.filter((t) => !archivedThreadIds.has(t.threadId)),
+    [displayThreads, archivedThreadIds],
   );
 
-  const lastArchivedRef = useRef<string | null>(null);
+  const lastArchivedRef = useRef<{ messageId: string; threadId: string } | null>(null);
 
   const archiveMutation = useMutation({
-    mutationFn: async (vars: { messageId: string }) => {
+    mutationFn: async (vars: { threadId: string }) => {
       const result = await removeFromInboxAction({ data: vars });
       window.dispatchEvent(new Event("sidebar-counts-changed"));
       return result;
@@ -165,7 +168,7 @@ function EmailDetailPage() {
   });
 
   const unarchiveMutation = useMutation({
-    mutationFn: async (vars: { messageId: string }) => {
+    mutationFn: async (vars: { threadId: string }) => {
       const result = await addToInboxAction({ data: vars });
       window.dispatchEvent(new Event("sidebar-counts-changed"));
       return result;
@@ -176,12 +179,16 @@ function EmailDetailPage() {
     (messageId: string) => {
       // Navigate to the next email in the list before removing
       const currentIdx = visibleThreads.findIndex((t) => t.id === messageId);
+      const thread = visibleThreads[currentIdx];
       const nextEmail =
         visibleThreads[currentIdx + 1] ?? visibleThreads[currentIdx - 1];
 
-      lastArchivedRef.current = messageId;
-      setArchivedIds((prev) => new Set(prev).add(messageId));
-      archiveMutation.mutate({ messageId });
+      const threadId = thread?.threadId;
+      if (!threadId) return;
+
+      lastArchivedRef.current = { messageId, threadId };
+      setArchivedThreadIds((prev) => new Set(prev).add(threadId));
+      archiveMutation.mutate({ threadId });
 
       if (nextEmail) {
         navigate({
@@ -212,21 +219,21 @@ function EmailDetailPage() {
   );
 
   const handleUndoArchive = useCallback(() => {
-    const messageId = lastArchivedRef.current;
-    if (!messageId) return;
+    const last = lastArchivedRef.current;
+    if (!last) return;
 
     lastArchivedRef.current = null;
-    setArchivedIds((prev) => {
+    setArchivedThreadIds((prev) => {
       const next = new Set(prev);
-      next.delete(messageId);
+      next.delete(last.threadId);
       return next;
     });
-    unarchiveMutation.mutate({ messageId });
+    unarchiveMutation.mutate({ threadId: last.threadId });
 
     // Navigate back to the restored email
     navigate({
       to: "/email/$id",
-      params: { id: messageId },
+      params: { id: last.messageId },
       search: {
         q: query,
         threads: threadsOnly || undefined,

@@ -637,7 +637,7 @@ export const setReadStatus = createServerFn({ method: "POST" })
   });
 
 export const removeFromInboxAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { messageId: string }) => data)
+  .inputValidator((data: { threadId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
 
@@ -645,15 +645,15 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
       throw new Error("Not authenticated. Run 'cmail auth' first.");
     }
 
-    await core.removeFromInbox(data.messageId);
+    await core.removeThreadFromInbox(data.threadId);
     const db = core.getDb();
-    core.removeLabels(db, data.messageId, ["INBOX"]);
+    core.removeThreadLabels(db, data.threadId, ["INBOX"]);
 
     return { success: true };
   });
 
 export const addToInboxAction = createServerFn({ method: "POST" })
-  .inputValidator((data: { messageId: string }) => data)
+  .inputValidator((data: { threadId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
 
@@ -661,9 +661,9 @@ export const addToInboxAction = createServerFn({ method: "POST" })
       throw new Error("Not authenticated. Run 'cmail auth' first.");
     }
 
-    await core.addToInbox(data.messageId);
+    await core.addThreadToInbox(data.threadId);
     const db = core.getDb();
-    core.addLabels(db, data.messageId, ["INBOX"]);
+    core.addThreadLabels(db, data.threadId, ["INBOX"]);
 
     return { success: true };
   });
