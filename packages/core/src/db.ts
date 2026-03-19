@@ -713,6 +713,115 @@ export function cacheBodyBatch(
   tx(bodies);
 }
 
+// ─── Contacts ─────────────────────────────────────────────────────────
+
+export interface ContactRow {
+  email: string;
+  name: string;
+  messageCount: number;
+  threadCount: number;
+  lastContactDate: number;
+  firstContactDate: number;
+}
+
+export type ContactSortField =
+  | "name"
+  | "email"
+  | "emails"
+  | "threads"
+  | "last_contacted"
+  | "first_contacted";
+
+export interface ContactQueryOpts {
+  query?: string;
+  sort?: ContactSortField;
+  dir?: "asc" | "desc";
+  limit?: number;
+}
+
+function parseAddress(raw: string): { name: string; email: string } {
+  const match = raw.match(/^(.+?)\s*<([^>]+)>$/);
+  if (match) {
+    return {
+      name: match[1].trim().replace(/^"|"$/g, ""),
+      email: match[2].trim(),
+    };
+  }
+  return { name: raw.trim(), email: raw.trim() };
+}
+
+export function queryContacts(
+  db: Database,
+  opts?: ContactQueryOpts,
+): ContactRow[] {
+  const params: any[] = [];
+  const whereClauses: string[] = [
+    '"from" IS NOT NULL',
+    "\"from\" != ''",
+  ];
+
+  // Exclude the user's own email
+  const state = getSyncState(db);
+  if (state.emailAddress) {
+    whereClauses.push('"from" NOT LIKE ?');
+    params.push(`%${state.emailAddress}%`);
+  }
+
+  if (opts?.query) {
+    whereClauses.push('"from" LIKE ?');
+    params.push(`%${opts.query}%`);
+  }
+
+  const where =
+    whereClauses.length > 0
+      ? `WHERE ${whereClauses.join(" AND ")}`
+      : "";
+
+  const sortMap: Record<string, string> = {
+    name: '"from"',
+    email: '"from"',
+    emails: "message_count",
+    threads: "thread_count",
+    last_contacted: "last_contact_date",
+    first_contacted: "first_contact_date",
+  };
+
+  const sortCol =
+    sortMap[opts?.sort || "last_contacted"] || "last_contact_date";
+  const sortDir =
+    opts?.dir === "asc" || opts?.dir === "desc" ? opts.dir : "desc";
+  const limit = opts?.limit || 500;
+  params.push(limit);
+
+  const sql = `
+    SELECT
+      "from" AS raw_address,
+      COUNT(*) AS message_count,
+      COUNT(DISTINCT thread_id) AS thread_count,
+      MAX(internal_date) AS last_contact_date,
+      MIN(internal_date) AS first_contact_date
+    FROM messages
+    ${where}
+    GROUP BY "from"
+    ORDER BY ${sortCol} ${sortDir}
+    LIMIT ?
+  `;
+
+  const rows = db.query(sql).all(...params) as any[];
+
+  return rows.map((row) => {
+    const { name, email } = parseAddress(row.raw_address);
+    return {
+      email,
+      name,
+      messageCount: row.message_count,
+      threadCount: row.thread_count,
+      lastContactDate: row.last_contact_date,
+      firstContactDate: row.first_contact_date,
+    };
+  });
+}
+
 // ─── Reset ───────────────────────────────────────────────────────────
 
 export function resetDb(db: Database): void {
