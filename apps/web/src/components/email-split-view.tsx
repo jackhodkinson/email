@@ -70,6 +70,9 @@ interface EmailSplitViewProps {
     subject: string | null;
   } | null;
   onCloseReply?: () => void;
+  onOpenEmailFullscreen?: (id: string) => void;
+  fullscreenRequestKey?: number | null;
+  onFullscreenRequestHandled?: () => void;
 }
 
 function isFocusableElement(el: HTMLElement | null): boolean {
@@ -113,6 +116,9 @@ export function EmailSplitView({
   onUndoArchive,
   replyTo,
   onCloseReply,
+  onOpenEmailFullscreen,
+  fullscreenRequestKey = null,
+  onFullscreenRequestHandled,
 }: EmailSplitViewProps) {
   const listFocusRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -141,6 +147,10 @@ export function EmailSplitView({
     state$.isFullscreen.set((prev) => !prev);
   }, []);
 
+  const enterFullscreen = useCallback(() => {
+    state$.isFullscreen.set(true);
+  }, []);
+
   // URL-derived index is the source of truth when selectedEmailId is present.
   // localSelectedIndex is only used as a brief optimistic override so the list
   // highlights the new row immediately, before the router delivers the new URL.
@@ -162,6 +172,12 @@ export function EmailSplitView({
       state$.localSelectedIndex.set(-1);
     }
   }, [urlSelectedIndex, localSelectedIndex]);
+
+  useEffect(() => {
+    if (fullscreenRequestKey === null) return;
+    state$.isFullscreen.set(true);
+    onFullscreenRequestHandled?.();
+  }, [fullscreenRequestKey, onFullscreenRequestHandled]);
 
   // Root focus sentinel: if focus ever lands on <body> (dialog closed, overlay
   // dismissed, etc.) reclaim it for the split view. A rAF delay lets overlays
@@ -280,6 +296,33 @@ export function EmailSplitView({
     [commands],
   );
 
+  const openSelectedFullscreen = useCallback(() => {
+    if (emails.length === 0) return;
+    if (resolvedSelectedIndex < 0) {
+      selectIndex(0);
+      return;
+    }
+
+    const id = emails[resolvedSelectedIndex]?.id;
+    if (!id) return;
+
+    if (onOpenEmailFullscreen) {
+      onOpenEmailFullscreen(id);
+      return;
+    }
+
+    runCommand("openSelectedEmail");
+  }, [emails, onOpenEmailFullscreen, resolvedSelectedIndex, runCommand, selectIndex]);
+
+  const handleEscape = useCallback(() => {
+    if (state$.isFullscreen.get()) {
+      state$.isFullscreen.set(false);
+      return;
+    }
+
+    runCommand("goToInbox");
+  }, [runCommand, state$]);
+
   const listHotkeyOptions = useMemo(
     () => ({ target: listFocusRef, enabled: activeSurface === "list" }),
     [activeSurface],
@@ -288,15 +331,19 @@ export function EmailSplitView({
     () => ({ target: viewerRef, enabled: activeSurface === "viewer" }),
     [activeSurface],
   );
+  const fullscreenHotkeyOptions = useMemo(
+    () => ({ enabled: isFullscreen }),
+    [isFullscreen],
+  );
 
   useHotkey("ArrowDown", () => runCommand("selectNextEmail"), listHotkeyOptions);
   useHotkey("ArrowUp", () => runCommand("selectPreviousEmail"), listHotkeyOptions);
-  useHotkey("Enter", () => runCommand("openSelectedEmail"), listHotkeyOptions);
+  useHotkey("Enter", openSelectedFullscreen, listHotkeyOptions);
   useHotkey("ArrowRight", () => runCommand("focusEmailViewer"), listHotkeyOptions);
   useHotkey("j", () => runCommand("selectNextEmail"), listHotkeyOptions);
   useHotkey("k", () => runCommand("selectPreviousEmail"), listHotkeyOptions);
   useHotkey("/", () => runCommand("focusSearch"), listHotkeyOptions);
-  useHotkey("Escape", () => runCommand("goToInbox"), listHotkeyOptions);
+  useHotkey("Escape", handleEscape, listHotkeyOptions);
 
   const archiveSelected = useCallback(() => {
     const id = selectedEmailId ?? emails[resolvedSelectedIndex]?.id;
@@ -324,13 +371,9 @@ export function EmailSplitView({
   useHotkey("r", replyToSelected, viewerHotkeyOptions);
 
   useHotkey("ArrowLeft", () => runCommand("focusEmailList"), viewerHotkeyOptions);
-  useHotkey("Escape", () => {
-    if (state$.isFullscreen.get()) {
-      state$.isFullscreen.set(false);
-    } else {
-      runCommand("goToInbox");
-    }
-  }, viewerHotkeyOptions);
+  useHotkey("Enter", enterFullscreen, viewerHotkeyOptions);
+  useHotkey("Escape", handleEscape, viewerHotkeyOptions);
+  useHotkey("Escape", handleEscape, fullscreenHotkeyOptions);
   useHotkey("f", toggleFullscreen, viewerHotkeyOptions);
   useHotkeySequence(["g", "i"], () => runCommand("goToInbox"), {
     enabled: activeSurface !== "none",

@@ -114,6 +114,28 @@ function InboxPage() {
     [category, compose, navigate, query, replyTo, threadsOnly],
   );
 
+  const handleOpenEmailFullscreen = useCallback(
+    (id: string) => {
+      navigate({
+        to: "/email/$id",
+        params: { id },
+        search: {
+          q: query,
+          threads: threadsOnly || undefined,
+          category,
+          compose,
+          replyTo,
+        },
+        state: ((prev: Record<string, unknown> | undefined) => ({
+          ...(prev ?? {}),
+          fullscreenEmailId: id,
+          fullscreenNonce: Date.now(),
+        })) as any,
+      });
+    },
+    [category, compose, navigate, query, replyTo, threadsOnly],
+  );
+
   const handleToggleThreadsOnly = useCallback(() => {
     const nextThreads = !threadsOnly || undefined;
     navigate({
@@ -184,6 +206,7 @@ function InboxPage() {
         <EmailSplitView
           emails={threads}
           onSelectEmail={handleSelectEmail}
+          onOpenEmailFullscreen={handleOpenEmailFullscreen}
           onHoverEmail={handleHoverEmail}
           focusSearch={focusSearch}
           searchParams={query ? { q: query } : undefined}

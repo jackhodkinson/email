@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   setReadStatus,
@@ -77,6 +77,15 @@ function EmailDetailPage() {
   const compose = search.compose;
   const replyTo = search.replyTo;
   const navigate = useNavigate();
+  const fullscreenRequestKey = useLocation({
+    select: (location) => {
+      const state = location.state as Record<string, unknown> | undefined;
+      if (state?.fullscreenEmailId !== selectedId) return null;
+      return typeof state?.fullscreenNonce === "number"
+        ? state.fullscreenNonce
+        : null;
+    },
+  });
   const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
 
@@ -293,6 +302,50 @@ function EmailDetailPage() {
     ],
   );
 
+  const handleOpenEmailFullscreen = useCallback(
+    (id: string) => {
+      navigate({
+        to: "/email/$id",
+        params: { id },
+        search: {
+          q: query,
+          threads: threadsOnly || undefined,
+          category,
+          compose,
+          replyTo,
+        },
+        state: ((prev: Record<string, unknown> | undefined) => ({
+          ...(prev ?? {}),
+          fullscreenEmailId: id,
+          fullscreenNonce: Date.now(),
+        })) as any,
+      });
+    },
+    [category, compose, navigate, query, replyTo, threadsOnly],
+  );
+
+  const handleFullscreenRequestHandled = useCallback(() => {
+    navigate({
+      to: "/email/$id",
+      params: { id: selectedId },
+      search: {
+        q: query,
+        threads: threadsOnly || undefined,
+        category,
+        compose,
+        replyTo,
+      },
+      replace: true,
+      state: ((prev: Record<string, unknown> | undefined) => {
+        if (!prev) return {};
+        const next = { ...prev };
+        delete next.fullscreenEmailId;
+        delete next.fullscreenNonce;
+        return next;
+      }) as any,
+    });
+  }, [category, compose, navigate, query, replyTo, selectedId, threadsOnly]);
+
   // Prefetch email detail on hover so click is instant
   const handleHoverEmail = useCallback(
     (id: string) => {
@@ -384,6 +437,7 @@ function EmailDetailPage() {
           email={emailDetail ?? null}
           threadEmails={threadEmails ?? null}
           onSelectEmail={handleSelectEmail}
+          onOpenEmailFullscreen={handleOpenEmailFullscreen}
           onHoverEmail={handleHoverEmail}
           focusSearch={focusSearch}
           searchParams={query ? { q: query } : undefined}
@@ -405,6 +459,8 @@ function EmailDetailPage() {
               : null
           }
           onCloseReply={() => handleComposeOpenChange(false)}
+          fullscreenRequestKey={fullscreenRequestKey}
+          onFullscreenRequestHandled={handleFullscreenRequestHandled}
         />
       </main>
       {composeOpen && (

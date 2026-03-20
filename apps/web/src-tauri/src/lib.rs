@@ -1,11 +1,20 @@
+use tauri::{Manager, WindowEvent};
+
 #[cfg(not(debug_assertions))]
-use tauri::Manager;
+use tauri::RunEvent;
 
 #[cfg(not(debug_assertions))]
 use std::sync::Mutex;
 
 #[cfg(not(debug_assertions))]
 struct SidecarChild(Mutex<Option<tauri_plugin_shell::process::CommandChild>>);
+
+#[cfg(not(debug_assertions))]
+fn cleanup_sidecar(app: &tauri::AppHandle) {
+    if let Some(child) = app.state::<SidecarChild>().0.lock().unwrap().take() {
+        let _ = child.kill();
+    }
+}
 
 pub fn run() {
     let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
@@ -82,22 +91,30 @@ pub fn run() {
         Ok(())
     });
 
-    #[cfg(not(debug_assertions))]
     let builder = builder.on_window_event(|window, event| {
-        if let tauri::WindowEvent::Destroyed = event {
-            if let Some(child) = window
-                .state::<SidecarChild>()
-                .0
-                .lock()
-                .unwrap()
-                .take()
-            {
-                let _ = child.kill();
-            }
+        if window.label() != "main" {
+            return;
+        }
+
+        if let WindowEvent::CloseRequested { .. } = event {
+            window.app_handle().exit(0);
+            return;
+        }
+
+        #[cfg(not(debug_assertions))]
+        if let WindowEvent::Destroyed = event {
+            cleanup_sidecar(&window.app_handle());
         }
     });
 
-    builder
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    let app = builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app, _event| {
+        #[cfg(not(debug_assertions))]
+        if matches!(_event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
+            cleanup_sidecar(_app);
+        }
+    });
 }
