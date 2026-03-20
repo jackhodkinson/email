@@ -135,6 +135,8 @@ function ContactsPage() {
                         q: `from:${contact.email}`,
                         threads: undefined,
                         category: undefined,
+                        compose: undefined,
+                        replyTo: undefined,
                       },
                     })
                   }
