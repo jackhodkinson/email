@@ -26,13 +26,21 @@ function Command({
 function CommandDialog({
   title = "Command Palette",
   children,
+  contentProps,
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   title?: string;
+  contentProps?: React.ComponentProps<typeof DialogContent>;
 }) {
+  const { className: contentClassName, ...restContentProps } = contentProps ?? {};
+
   return (
     <Dialog {...props}>
-      <DialogContent className="gap-0 overflow-hidden p-0 shadow-lg" showCloseButton={false}>
+      <DialogContent
+        className={cn("gap-0 overflow-hidden p-0 shadow-lg", contentClassName)}
+        showCloseButton={false}
+        {...restContentProps}
+      >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <Command className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:size-4 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:size-4 [&_[cmdk-item]]:gap-2 [&_[cmdk-list]]:max-h-[320px] [&_[cmdk-list]]:overflow-y-auto [&_[cmdk-item]]:rounded-sm [&_[cmdk-item][data-selected=true]]:bg-accent [&_[cmdk-item][data-selected=true]]:text-accent-foreground">
           {children}
@@ -42,10 +50,10 @@ function CommandDialog({
   );
 }
 
-function CommandInput({
-  className,
-  ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+const CommandInput = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Input>,
+  React.ComponentProps<typeof CommandPrimitive.Input>
+>(function CommandInput({ className, ...props }, ref) {
   return (
     <div
       cmdk-input-wrapper=""
@@ -53,6 +61,7 @@ function CommandInput({
     >
       <Search className="mr-2 size-4 shrink-0 opacity-50" />
       <CommandPrimitive.Input
+        ref={ref}
         data-slot="command-input"
         className={cn(
           "placeholder:text-muted-foreground flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
@@ -62,7 +71,7 @@ function CommandInput({
       />
     </div>
   );
-}
+});
 
 function CommandList({
   className,

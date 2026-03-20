@@ -12,6 +12,7 @@ import { SearchBox, type SearchBoxHandle } from '../components/search-box'
 import { ViewCommandPalette } from '../components/view-command-palette'
 import { Button } from '../components/ui/button'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar'
+import { FocusManagerProvider } from '../lib/focus-manager'
 import { SearchBoxContext } from '../lib/search-context'
 import { getQueryClient } from '../lib/query'
 import { ThemeProvider, THEME_INIT_SCRIPT } from '../lib/theme'
@@ -110,6 +111,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <ScriptOnce>{THEME_INIT_SCRIPT}</ScriptOnce>
         <HotkeysProvider>
+          <FocusManagerProvider>
           <QueryClientProvider client={queryClient}>
           <ThemeProvider>
           <SearchBoxContext.Provider value={searchBoxRef}>
@@ -145,6 +147,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             ]}
           />
           <Scripts />
+          </FocusManagerProvider>
         </HotkeysProvider>
       </body>
     </html>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMatches, useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
@@ -13,6 +13,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { useFocusManager } from "@/lib/focus-manager";
 import {
   getActiveMailViewId,
   inboxCategoryViews,
@@ -34,6 +35,8 @@ export function ViewCommandPalette({
   const navigate = useNavigate();
   const matches = useMatches();
   const queryClient = useQueryClient();
+  const focusManager = useFocusManager();
+  const inputRef = useRef<HTMLInputElement>(null);
   const search = matches[matches.length - 1]?.search as
     | { category?: string }
     | undefined;
@@ -44,6 +47,19 @@ export function ViewCommandPalette({
   });
 
   const { data: counts } = useQuery(sidebarCountsQueryOptions());
+
+  useEffect(() => {
+    return focusManager.registerSurface("command-palette", () => inputRef.current);
+  }, [focusManager]);
+
+  useEffect(() => {
+    if (open) {
+      focusManager.activateOverlay("command-palette");
+      return;
+    }
+
+    focusManager.deactivateOverlay("command-palette");
+  }, [focusManager, open]);
 
   useEffect(() => {
     const invalidate = () => {
@@ -112,8 +128,21 @@ export function ViewCommandPalette({
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Switch email view">
-      <CommandInput placeholder="Switch views..." />
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Switch email view"
+      contentProps={{
+        onCloseAutoFocus: (event) => {
+          event.preventDefault();
+          focusManager.deactivateOverlay("command-palette");
+          requestAnimationFrame(() => {
+            focusManager.focusPreferredSurface();
+          });
+        },
+      }}
+    >
+      <CommandInput ref={inputRef} placeholder="Switch views..." />
       <CommandList>
         <CommandEmpty>No matching views.</CommandEmpty>
         <CommandGroup heading="Inbox">

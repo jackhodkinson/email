@@ -17,7 +17,7 @@ interface Email {
 interface EmailListProps {
   emails: Email[];
   selectedIndex?: number;
-  listRef?: RefObject<HTMLDivElement>;
+  listRef?: RefObject<HTMLDivElement | null>;
   onSelectEmail?: (id: string) => void;
   onHoverEmail?: (id: string) => void;
 }

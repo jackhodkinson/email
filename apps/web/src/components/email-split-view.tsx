@@ -9,6 +9,7 @@ import { EmailListToolbar } from "./email-list-toolbar";
 import { EmailView } from "./email-view";
 import { ThreadView } from "./thread-view";
 import { ReplyPanel } from "./reply-panel";
+import { useFocusManager } from "@/lib/focus-manager";
 import { useCommands } from "@/lib/commands/use-commands";
 
 interface EmailSummary {
@@ -93,6 +94,8 @@ function isFocusableElement(el: HTMLElement | null): boolean {
 }
 
 const noop = () => {};
+const LIST_SURFACE_ID = "mail-list";
+const VIEWER_SURFACE_ID = "mail-viewer";
 
 export function EmailSplitView({
   emails,
@@ -114,13 +117,13 @@ export function EmailSplitView({
   replyTo,
   onCloseReply,
 }: EmailSplitViewProps) {
+  const focusManager = useFocusManager();
   const listFocusRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const state$ = useObservable({
     localSelectedIndex: -1,
     activeSurface: "none" as "none" | "list" | "viewer",
-    lastActiveSurface: "list" as "list" | "viewer",
     pendingViewerFocus: false,
     isFullscreen: false,
   });
@@ -163,43 +166,33 @@ export function EmailSplitView({
     }
   }, [urlSelectedIndex, localSelectedIndex]);
 
-  // Root focus sentinel: if focus ever lands on <body> (dialog closed, overlay
-  // dismissed, etc.) reclaim it for the split view. A rAF delay lets overlays
-  // finish their own focus cleanup first so we don't fight them.
   useEffect(() => {
-    let rafId = 0;
+    return focusManager.registerSurface(LIST_SURFACE_ID, () => listFocusRef.current);
+  }, [focusManager]);
 
+  useEffect(() => {
+    return focusManager.registerSurface(VIEWER_SURFACE_ID, () => {
+      const viewer = viewerRef.current;
+      if (!viewer) return null;
+      return findViewerFocusTarget(viewer) ?? viewer;
+    });
+  }, [findViewerFocusTarget, focusManager]);
+
+  useEffect(() => {
     const handleFocusIn = () => {
-      cancelAnimationFrame(rafId);
       const active = document.activeElement;
 
       if (active && listFocusRef.current?.contains(active)) {
         state$.activeSurface.set("list");
-        state$.lastActiveSurface.set("list");
+        focusManager.setActiveSurface(LIST_SURFACE_ID);
         return;
       }
       if (active && viewerRef.current?.contains(active)) {
         state$.activeSurface.set("viewer");
-        state$.lastActiveSurface.set("viewer");
+        focusManager.setActiveSurface(VIEWER_SURFACE_ID);
         if (active !== viewerRef.current) {
           state$.pendingViewerFocus.set(false);
         }
-        return;
-      }
-
-      if (active === document.body) {
-        // Defer so dialog/overlay teardown settles first
-        rafId = requestAnimationFrame(() => {
-          if (document.activeElement !== document.body) return;
-          // Don't reclaim if an overlay is still mounted
-          if (document.querySelector("[data-slot='dialog-overlay']")) return;
-          const last = state$.lastActiveSurface.get();
-          if (last === "viewer" && viewerRef.current) {
-            viewerRef.current.focus({ preventScroll: true });
-          } else if (listFocusRef.current) {
-            listFocusRef.current.focus({ preventScroll: true });
-          }
-        });
         return;
       }
 
@@ -209,21 +202,20 @@ export function EmailSplitView({
 
     document.addEventListener("focusin", handleFocusIn);
 
-    // Initial mount: claim focus if nothing else has it
     if (document.activeElement === document.body) {
-      listFocusRef.current?.focus({ preventScroll: true });
+      focusManager.focusSurface(LIST_SURFACE_ID);
     }
 
     return () => {
       document.removeEventListener("focusin", handleFocusIn);
-      cancelAnimationFrame(rafId);
     };
-  }, []);
+  }, [focusManager]);
 
   const focusList = useCallback(() => {
     listFocusRef.current?.focus({ preventScroll: true });
     state$.activeSurface.set("list");
-  }, []);
+    focusManager.setActiveSurface(LIST_SURFACE_ID);
+  }, [focusManager]);
 
   const focusViewer = useCallback(() => {
     const viewer = viewerRef.current;
@@ -233,12 +225,14 @@ export function EmailSplitView({
       focusTarget.focus({ preventScroll: true });
       state$.activeSurface.set("viewer");
       state$.pendingViewerFocus.set(false);
+      focusManager.setActiveSurface(VIEWER_SURFACE_ID);
       return;
     }
     viewer.focus({ preventScroll: true });
     state$.activeSurface.set("viewer");
     state$.pendingViewerFocus.set(true);
-  }, [findViewerFocusTarget]);
+    focusManager.setActiveSurface(VIEWER_SURFACE_ID);
+  }, [findViewerFocusTarget, focusManager]);
 
   const selectIndex = useCallback(
     (index: number) => {
