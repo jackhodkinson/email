@@ -38,7 +38,13 @@ export function SearchBox({ ref, query, threadsOnly }: SearchBoxProps) {
     const trimmed = searchValue.trim() || undefined;
     navigate({
       to: "/",
-      search: { q: trimmed, threads: threadsOnly || undefined, category: undefined },
+      search: {
+        q: trimmed,
+        threads: threadsOnly || undefined,
+        category: undefined,
+        compose: undefined,
+        replyTo: undefined,
+      },
     });
   };
 
@@ -46,7 +52,13 @@ export function SearchBox({ ref, query, threadsOnly }: SearchBoxProps) {
     draft$.set(null);
     navigate({
       to: "/",
-      search: { q: undefined, threads: threadsOnly || undefined, category: undefined },
+      search: {
+        q: undefined,
+        threads: threadsOnly || undefined,
+        category: undefined,
+        compose: undefined,
+        replyTo: undefined,
+      },
     });
   };
 

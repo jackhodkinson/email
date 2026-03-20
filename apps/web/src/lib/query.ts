@@ -1,6 +1,7 @@
 import { queryOptions, QueryClient } from "@tanstack/react-query";
 import {
   getEmailById,
+  getSidebarCounts,
   getThreadEmails,
   getThreadedInboxEmails,
   searchThreadedInboxEmails,
@@ -24,6 +25,7 @@ const EMAIL_STALE_TIME = 10 * 60 * 1000;
 
 /** Inbox list staleTime — 30 s is long enough to survive rapid j/k navigation. */
 const INBOX_STALE_TIME = 30_000;
+const SIDEBAR_COUNTS_STALE_TIME = 30_000;
 
 export function inboxQueryOptions(opts: {
   query?: string;
@@ -57,6 +59,15 @@ export function emailDetailQueryOptions(emailId: string) {
     staleTime: EMAIL_STALE_TIME,
     // Keep unused entries in cache for 30 min so back-navigation is instant
     gcTime: 30 * 60 * 1000,
+  });
+}
+
+export function sidebarCountsQueryOptions() {
+  return queryOptions({
+    queryKey: ["email", "sidebar-counts"],
+    queryFn: () => getSidebarCounts(),
+    staleTime: SIDEBAR_COUNTS_STALE_TIME,
+    gcTime: 5 * 60 * 1000,
   });
 }
 

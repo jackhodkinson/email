@@ -484,7 +484,13 @@ function NotFound() {
       </p>
       <Link
         to="/"
-        search={{ q: undefined, threads: undefined, category: undefined }}
+        search={{
+          q: undefined,
+          threads: undefined,
+          category: undefined,
+          compose: undefined,
+          replyTo: undefined,
+        }}
         className="link-primary inline-flex items-center gap-2"
       >
         <svg

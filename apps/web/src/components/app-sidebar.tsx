@@ -1,17 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { Link, useMatches } from "@tanstack/react-router";
-import {
-  Archive,
-  ChevronRight,
-  Contact,
-  Inbox,
-  Mail,
-  Tag,
-  Users,
-  Bell,
-  MessagesSquare,
-  Star,
-} from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 
 import {
   Collapsible,
@@ -35,62 +25,60 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { getSidebarCounts } from "@/server/functions";
-
-type SidebarCounts = Awaited<ReturnType<typeof getSidebarCounts>>;
-
-const inboxCategories = [
-  { title: "Primary", category: "primary", icon: Mail },
-  { title: "Promotions", category: "promotions", icon: Tag },
-  { title: "Social", category: "social", icon: Users },
-  { title: "Updates", category: "updates", icon: Bell },
-  { title: "Forums", category: "forums", icon: MessagesSquare },
-];
+import {
+  getActiveMailViewId,
+  inboxCategoryViews,
+  inboxView,
+  isInboxCategoryView,
+  secondaryMailViews,
+} from "@/lib/mail-views";
+import { sidebarCountsQueryOptions } from "@/lib/query";
 
 export function AppSidebar() {
   const matches = useMatches();
+  const queryClient = useQueryClient();
   const search = matches[matches.length - 1]?.search as
     | { category?: string }
     | undefined;
   const activeCategory = search?.category;
-
-  const [counts, setCounts] = useState<SidebarCounts | null>(null);
-  const fetchCounts = useCallback(() => {
-    getSidebarCounts().then(setCounts);
-  }, []);
-  useEffect(() => {
-    fetchCounts();
-    const id = setInterval(fetchCounts, 60_000);
-    window.addEventListener("sidebar-counts-changed", fetchCounts);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("sidebar-counts-changed", fetchCounts);
-    };
-  }, [fetchCounts]);
-
   const isContactsRoute = matches.some(
     (m) => m.routeId === "/contacts",
   );
+  const activeViewId = getActiveMailViewId({
+    category: activeCategory,
+    isContactsRoute,
+  });
+  const { data: counts } = useQuery(sidebarCountsQueryOptions());
 
-  const isInboxCategoryActive = inboxCategories.some(
-    (item) => item.category === activeCategory,
-  );
+  useEffect(() => {
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: sidebarCountsQueryOptions().queryKey });
+    };
+
+    const intervalId = window.setInterval(invalidate, 60_000);
+    window.addEventListener("sidebar-counts-changed", invalidate);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("sidebar-counts-changed", invalidate);
+    };
+  }, [queryClient]);
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to="/" search={{ q: undefined, threads: undefined, category: undefined }}>
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Inbox className="size-4" />
-                </div>
-                <span className="font-semibold">Mail</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link to={inboxView.route.to} search={inboxView.route.search}>
+                  <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                    <inboxView.icon className="size-4" />
+                  </div>
+                  <span className="font-semibold">Mail</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -105,13 +93,13 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <SidebarMenuButton
                       asChild
-                      isActive={!isContactsRoute && (!activeCategory || isInboxCategoryActive)}
-                      tooltip="Inbox"
+                      isActive={activeViewId === inboxView.id || isInboxCategoryView(activeCategory)}
+                      tooltip={inboxView.title}
                       className="flex-1"
                     >
-                      <Link to="/" search={{ q: undefined, threads: undefined, category: undefined }}>
-                        <Inbox />
-                        <span className="flex-1">Inbox</span>
+                      <Link to={inboxView.route.to} search={inboxView.route.search}>
+                        <inboxView.icon />
+                        <span className="flex-1">{inboxView.title}</span>
                         {counts && counts.inbox > 0 && (
                           <span className="text-xs tabular-nums text-sidebar-foreground/70">
                             {counts.inbox}
@@ -122,22 +110,18 @@ export function AppSidebar() {
                   </div>
                   <CollapsibleContent>
                     <SidebarMenuSub>
-                      {inboxCategories.map((item) => (
-                        <SidebarMenuSubItem key={item.category}>
+                      {inboxCategoryViews.map((view) => (
+                        <SidebarMenuSubItem key={view.id}>
                           <SidebarMenuSubButton
                             asChild
-                            isActive={activeCategory === item.category}
+                            isActive={activeViewId === view.id}
                           >
-                            <Link
-                              to="/"
-                              search={{ category: item.category, q: undefined, threads: undefined }}
-                            >
-                              <item.icon />
-                              <span className="flex-1">{item.title}</span>
-                              {counts &&
-                                counts[item.category as keyof SidebarCounts] > 0 && (
+                            <Link to={view.route.to} search={view.route.search}>
+                              <view.icon />
+                              <span className="flex-1">{view.title}</span>
+                              {counts && view.countKey && counts[view.countKey] > 0 && (
                                   <span className="text-xs tabular-nums text-sidebar-foreground/70">
-                                    {counts[item.category as keyof SidebarCounts]}
+                                    {counts[view.countKey]}
                                   </span>
                                 )}
                             </Link>
@@ -149,55 +133,32 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               </Collapsible>
 
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={activeCategory === "starred"}
-                  tooltip="Starred"
-                >
-                  <Link
-                    to="/"
-                    search={{ category: "starred", q: undefined, threads: undefined }}
+              {secondaryMailViews.map((view) => (
+                <SidebarMenuItem key={view.id}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={activeViewId === view.id}
+                    tooltip={view.title}
                   >
-                    <Star />
-                    <span className="flex-1">Starred</span>
-                    {counts && counts.starred > 0 && (
-                      <span className="text-xs tabular-nums text-sidebar-foreground/70">
-                        {counts.starred}
-                      </span>
+                    {view.route.to === "/contacts" ? (
+                      <Link to={view.route.to} search={view.route.search}>
+                        <view.icon />
+                        <span className="flex-1">{view.title}</span>
+                      </Link>
+                    ) : (
+                      <Link to={view.route.to} search={view.route.search}>
+                        <view.icon />
+                        <span className="flex-1">{view.title}</span>
+                        {counts && view.countKey && counts[view.countKey] > 0 && (
+                          <span className="text-xs tabular-nums text-sidebar-foreground/70">
+                            {counts[view.countKey]}
+                          </span>
+                        )}
+                      </Link>
                     )}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={activeCategory === "archive"}
-                  tooltip="Archive"
-                >
-                  <Link
-                    to="/"
-                    search={{ category: "archive", q: undefined, threads: undefined }}
-                  >
-                    <Archive />
-                    <span>Archive</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isContactsRoute}
-                  tooltip="Contacts"
-                >
-                  <Link to="/contacts" search={{ q: undefined, sort: undefined, dir: undefined }}>
-                    <Contact />
-                    <span>Contacts</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

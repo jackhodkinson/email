@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseEmailAddress } from "./email-address-chip";
 import { sendEmailAction } from "../server/functions";
 import { Button } from "./ui/button";
@@ -13,6 +13,7 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import { useRouter } from "@tanstack/react-router";
+import { useFocusManager } from "@/lib/focus-manager";
 
 type ComposeMode = "new" | "reply";
 
@@ -52,6 +53,8 @@ export function ComposeSheet({
   onOpenChange,
 }: ComposeSheetProps) {
   const router = useRouter();
+  const focusManager = useFocusManager();
+  const toInputRef = useRef<HTMLInputElement>(null);
   const [to, setTo] = useState(mode === "reply" ? toReplyAddress(replySender) : "");
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
@@ -64,6 +67,19 @@ export function ComposeSheet({
   const [error, setError] = useState<string | null>(null);
 
   const isReply = mode === "reply";
+
+  useEffect(() => {
+    return focusManager.registerSurface("compose-dialog", () => toInputRef.current);
+  }, [focusManager]);
+
+  useEffect(() => {
+    if (open) {
+      focusManager.activateOverlay("compose-dialog");
+      return;
+    }
+
+    focusManager.deactivateOverlay("compose-dialog");
+  }, [focusManager, open]);
 
   const canSend = useMemo(() => {
     if (isSending) return false;
@@ -120,7 +136,17 @@ export function ComposeSheet({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 top-0 left-0 rounded-none border-none gap-0 p-0 flex flex-col" showCloseButton={false}>
+      <DialogContent
+        className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 top-0 left-0 rounded-none border-none gap-0 p-0 flex flex-col"
+        showCloseButton={false}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          focusManager.deactivateOverlay("compose-dialog");
+          requestAnimationFrame(() => {
+            focusManager.focusPreferredSurface();
+          });
+        }}
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{isReply ? "Reply" : "New message"}</DialogTitle>
           <DialogDescription>Compose an email</DialogDescription>
@@ -132,6 +158,7 @@ export function ComposeSheet({
             <label className="compose-field">
               <span className="compose-field__label">To</span>
               <input
+                ref={toInputRef}
                 value={to}
                 onChange={(event) => setTo(event.target.value)}
                 placeholder="Recipients"
