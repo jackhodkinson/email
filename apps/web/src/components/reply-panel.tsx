@@ -1,13 +1,19 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { parseEmailAddress } from "./email-address-chip";
 import { sendEmailAction } from "../server/functions";
+import {
+  applyOptimisticReply,
+  createOptimisticReplyId,
+} from "../lib/reply-cache";
 import { Button } from "./ui/button";
 import { useRouter } from "@tanstack/react-router";
 
 interface ReplyPanelProps {
   replyToMessageId: string;
+  threadId: string;
   replySender?: string | null;
   replySubject?: string | null;
   onClose: () => void;
@@ -33,11 +39,13 @@ function splitAddressList(raw: string): string[] {
 
 export function ReplyPanel({
   replyToMessageId,
+  threadId,
   replySender,
   replySubject,
   onClose,
 }: ReplyPanelProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [to] = useState(() => toReplyAddress(replySender));
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
@@ -62,20 +70,35 @@ export function ReplyPanel({
 
       setError(null);
       setIsSending(true);
+      const recipients = splitAddressList(to);
+      const ccRecipients = splitAddressList(cc);
+      const bccRecipients = splitAddressList(bcc);
+      const optimistic = applyOptimisticReply(queryClient, {
+        tempId: createOptimisticReplyId(),
+        threadId,
+        subject,
+        body,
+        to: recipients,
+        cc: ccRecipients,
+        sender: "You",
+      });
+
       try {
-        await sendEmailAction({
+        const result = await sendEmailAction({
           data: {
-            to: splitAddressList(to),
-            cc: splitAddressList(cc),
-            bcc: splitAddressList(bcc),
+            to: recipients,
+            cc: ccRecipients,
+            bcc: bccRecipients,
             subject,
             body,
             replyToMessageId,
           },
         });
-        await router.invalidate();
+        optimistic.replace(result.messageId);
         onClose();
+        void router.invalidate();
       } catch (sendError) {
+        optimistic.rollback();
         const message =
           sendError instanceof Error ? sendError.message : "Failed to send email.";
         setError(message);
@@ -83,7 +106,19 @@ export function ReplyPanel({
         setIsSending(false);
       }
     },
-    [bcc, body, canSend, cc, onClose, replyToMessageId, router, subject, to],
+    [
+      bcc,
+      body,
+      canSend,
+      cc,
+      onClose,
+      queryClient,
+      replyToMessageId,
+      router,
+      subject,
+      threadId,
+      to,
+    ],
   );
 
   const handleKeyDown = useCallback(

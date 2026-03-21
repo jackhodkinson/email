@@ -38,11 +38,12 @@ export function ViewCommandPalette({
   const focusManager = useFocusManager();
   const inputRef = useRef<HTMLInputElement>(null);
   const search = matches[matches.length - 1]?.search as
-    | { category?: string }
+    | { category?: string; label?: string }
     | undefined;
   const isContactsRoute = matches.some((match) => match.routeId === "/contacts");
   const activeViewId = getActiveMailViewId({
     category: search?.category,
+    label: search?.label,
     isContactsRoute,
   });
 

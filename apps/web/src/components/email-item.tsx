@@ -1,30 +1,57 @@
 import { forwardRef, memo } from "react";
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/date";
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 interface EmailItemProps {
   id: string;
   email: {
     id: string;
+    threadId: string;
     sender: string;
     subject: string | null;
     snippet: string | null;
     date: number;
     isRead: boolean;
     hasAttachments: boolean;
+    labels: string[];
   };
   isSelected?: boolean;
   threadCount?: number;
   onSelectEmail?: (id: string) => void;
   onHoverEmail?: (id: string) => void;
+  availableLabels?: Array<{ id: string; name: string }>;
+  onToggleThreadLabel?: (
+    threadId: string,
+    labelId: string,
+    enabled: boolean,
+  ) => void;
+  labelsBusy?: boolean;
 }
 
 export const EmailItem = memo(
   forwardRef<HTMLDivElement, EmailItemProps>(function EmailItem(
-    { id, email, isSelected, threadCount, onSelectEmail, onHoverEmail },
+    {
+      id,
+      email,
+      isSelected,
+      threadCount,
+      onSelectEmail,
+      onHoverEmail,
+      availableLabels = [],
+      onToggleThreadLabel,
+      labelsBusy = false,
+    },
     ref,
   ) {
-    return (
+    const content = (
       <div
         ref={ref}
         id={id}
@@ -82,6 +109,44 @@ export const EmailItem = memo(
         )}
       </div>
     );
+
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {content}
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-56">
+          <ContextMenuLabel>Apply labels</ContextMenuLabel>
+          <ContextMenuSeparator />
+          {availableLabels.length === 0 ? (
+            <div className="text-muted-foreground px-2 py-1.5 text-sm">
+              No labels yet
+            </div>
+          ) : (
+            availableLabels.map((label) => {
+              const checked = email.labels.includes(label.id);
+              return (
+                <ContextMenuCheckboxItem
+                  key={label.id}
+                  checked={checked}
+                  disabled={labelsBusy}
+                  onCheckedChange={(nextChecked) => {
+                    onToggleThreadLabel?.(
+                      email.threadId,
+                      label.id,
+                      nextChecked === true,
+                    );
+                  }}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {label.name}
+                </ContextMenuCheckboxItem>
+              );
+            })
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+    );
   }),
 );
 
@@ -90,4 +155,3 @@ function formatSender(sender: string): string {
   const match = sender.match(/^(.+?)\s*<[^>]+>$/);
   return match ? match[1].trim() : sender;
 }
-

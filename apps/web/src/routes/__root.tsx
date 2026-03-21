@@ -56,6 +56,7 @@ function NotFound() {
           q: undefined,
           threads: undefined,
           category: undefined,
+          label: undefined,
           compose: undefined,
           replyTo: undefined,
         }}
@@ -76,13 +77,19 @@ function RootHeader({
 }) {
   const matches = useMatches();
   const search = matches[matches.length - 1]?.search as
-    | { q?: string; threads?: boolean }
+    | { q?: string; threads?: boolean; category?: string; label?: string }
     | undefined;
 
   return (
     <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
       <SidebarTrigger className="-ml-1" />
-      <SearchBox ref={searchBoxRef} query={search?.q} threadsOnly={!!search?.threads} />
+      <SearchBox
+        ref={searchBoxRef}
+        query={search?.q}
+        threadsOnly={!!search?.threads}
+        category={search?.category}
+        label={search?.label}
+      />
       <Button
         type="button"
         variant="outline"

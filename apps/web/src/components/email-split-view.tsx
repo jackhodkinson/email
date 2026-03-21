@@ -4,6 +4,8 @@ import type {
 } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { EmailList } from "./email-list";
 import { EmailListToolbar } from "./email-list-toolbar";
 import { EmailView } from "./email-view";
@@ -11,9 +13,12 @@ import { ThreadView } from "./thread-view";
 import { ReplyPanel } from "./reply-panel";
 import { useFocusManager } from "@/lib/focus-manager";
 import { useCommands } from "@/lib/commands/use-commands";
+import { userLabelsQueryOptions } from "@/lib/query";
+import { setThreadLabelsAction } from "@/server/functions";
 
 interface EmailSummary {
   id: string;
+  threadId: string;
   sender: string;
   subject: string | null;
   snippet: string | null;
@@ -21,6 +26,7 @@ interface EmailSummary {
   isRead: boolean;
   hasAttachments: boolean;
   threadCount?: number;
+  labels: string[];
 }
 
 interface EmailDetail {
@@ -67,6 +73,7 @@ interface EmailSplitViewProps {
   onUndoArchive?: () => void;
   replyTo?: {
     messageId: string;
+    threadId: string;
     sender: string | null;
     subject: string | null;
   } | null;
@@ -123,6 +130,8 @@ export function EmailSplitView({
   fullscreenRequestKey = null,
   onFullscreenRequestHandled,
 }: EmailSplitViewProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const focusManager = useFocusManager();
   const listFocusRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -145,6 +154,26 @@ export function EmailSplitView({
   const activeSurface = useValue(() => state$.activeSurface.get());
   const pendingViewerFocus = useValue(() => state$.pendingViewerFocus.get());
   const isFullscreen = useValue(() => state$.isFullscreen.get());
+  const { data: labelData } = useQuery(userLabelsQueryOptions());
+  const availableLabels = labelData?.labels.map((label) => ({
+    id: label.id,
+    name: label.name,
+  })) ?? [];
+
+  const labelMutation = useMutation({
+    mutationFn: async (input: {
+      threadId: string;
+      addLabelIds: string[];
+      removeLabelIds: string[];
+    }) => setThreadLabelsAction({ data: input }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["email", "inbox"] }),
+        queryClient.invalidateQueries({ queryKey: ["email", "labels"] }),
+      ]);
+      await router.invalidate();
+    },
+  });
 
   const toggleFullscreen = useCallback(() => {
     state$.isFullscreen.set((prev) => !prev);
@@ -398,6 +427,17 @@ export function EmailSplitView({
     [focusViewer],
   );
 
+  const handleToggleThreadLabel = useCallback(
+    (threadId: string, labelId: string, enabled: boolean) => {
+      labelMutation.mutate({
+        threadId,
+        addLabelIds: enabled ? [labelId] : [],
+        removeLabelIds: enabled ? [] : [labelId],
+      });
+    },
+    [labelMutation],
+  );
+
   const isReplying = !!replyTo;
 
   return (
@@ -421,6 +461,9 @@ export function EmailSplitView({
             listRef={listRef}
             onSelectEmail={handleSelectEmail}
             onHoverEmail={onHoverEmail}
+            availableLabels={availableLabels}
+            onToggleThreadLabel={handleToggleThreadLabel}
+            labelsBusy={labelMutation.isPending}
           />
         </div>
       </section>
@@ -477,6 +520,7 @@ export function EmailSplitView({
             <ReplyPanel
               key={replyTo.messageId}
               replyToMessageId={replyTo.messageId}
+              threadId={replyTo.threadId}
               replySender={replyTo.sender}
               replySubject={replyTo.subject}
               onClose={onCloseReply}

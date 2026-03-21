@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { Link, useMatches } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useMatches, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, PencilLine, Plus, Tag } from "lucide-react";
 
 import {
   Collapsible,
@@ -13,10 +13,13 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -24,7 +27,13 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { LabelDialog } from "@/components/label-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  createLabelAction,
+  deleteLabelAction,
+  updateLabelAction,
+} from "@/server/functions";
 import {
   getActiveMailViewId,
   inboxCategoryViews,
@@ -32,35 +41,128 @@ import {
   isInboxCategoryView,
   secondaryMailViews,
 } from "@/lib/mail-views";
-import { sidebarCountsQueryOptions } from "@/lib/query";
+import { sidebarCountsQueryOptions, userLabelsQueryOptions } from "@/lib/query";
+
+type SidebarLabel = {
+  id: string;
+  name: string;
+  unread: number;
+};
 
 export function AppSidebar() {
+  const navigate = useNavigate();
   const matches = useMatches();
   const queryClient = useQueryClient();
   const search = matches[matches.length - 1]?.search as
-    | { category?: string }
+    | { category?: string; label?: string }
     | undefined;
   const activeCategory = search?.category;
+  const activeLabelId = search?.label;
   const isContactsRoute = matches.some(
     (m) => m.routeId === "/contacts",
   );
   const activeViewId = getActiveMailViewId({
     category: activeCategory,
+    label: activeLabelId,
     isContactsRoute,
   });
   const { data: counts } = useQuery(sidebarCountsQueryOptions());
+  const { data: labelData } = useQuery(userLabelsQueryOptions());
+  const labels = labelData?.labels ?? [];
+  const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState<SidebarLabel | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+
+  const resetDialog = () => {
+    setDialogMode(null);
+    setSelectedLabel(null);
+    setDialogError(null);
+  };
+
+  const refreshSidebarData = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: sidebarCountsQueryOptions().queryKey }),
+      queryClient.invalidateQueries({ queryKey: userLabelsQueryOptions().queryKey }),
+      queryClient.invalidateQueries({ queryKey: ["email", "inbox"] }),
+    ]);
+  };
+
+  const createLabelMutation = useMutation({
+    mutationFn: async (name: string) => createLabelAction({ data: { name } }),
+    onSuccess: async (created) => {
+      await refreshSidebarData();
+      resetDialog();
+      navigate({
+        to: "/",
+        search: {
+          q: undefined,
+          threads: undefined,
+          category: undefined,
+          label: created.id,
+          compose: undefined,
+          replyTo: undefined,
+        },
+      });
+    },
+    onError: (error) => {
+      setDialogError(error instanceof Error ? error.message : "Failed to create label.");
+    },
+  });
+
+  const updateLabelMutation = useMutation({
+    mutationFn: async (input: { labelId: string; name: string }) =>
+      updateLabelAction({ data: input }),
+    onSuccess: async () => {
+      await refreshSidebarData();
+      resetDialog();
+    },
+    onError: (error) => {
+      setDialogError(error instanceof Error ? error.message : "Failed to save label.");
+    },
+  });
+
+  const deleteLabelMutation = useMutation({
+    mutationFn: async (labelId: string) => deleteLabelAction({ data: { labelId } }),
+    onSuccess: async (_data, labelId) => {
+      await refreshSidebarData();
+      if (activeLabelId === labelId) {
+        navigate({
+          to: "/",
+          search: {
+            q: undefined,
+            threads: undefined,
+            category: undefined,
+            label: undefined,
+            compose: undefined,
+            replyTo: undefined,
+          },
+        });
+      }
+      resetDialog();
+    },
+    onError: (error) => {
+      setDialogError(error instanceof Error ? error.message : "Failed to delete label.");
+    },
+  });
+
+  const dialogBusy = createLabelMutation.isPending
+    || updateLabelMutation.isPending
+    || deleteLabelMutation.isPending;
 
   useEffect(() => {
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: sidebarCountsQueryOptions().queryKey });
+      queryClient.invalidateQueries({ queryKey: userLabelsQueryOptions().queryKey });
     };
 
     const intervalId = window.setInterval(invalidate, 60_000);
     window.addEventListener("sidebar-counts-changed", invalidate);
+    window.addEventListener("labels-changed", invalidate);
 
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener("sidebar-counts-changed", invalidate);
+      window.removeEventListener("labels-changed", invalidate);
     };
   }, [queryClient]);
 
@@ -162,11 +264,107 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel>Labels</SidebarGroupLabel>
+          <SidebarGroupAction
+            aria-label="Create label"
+            title="Create label"
+            onClick={() => {
+              setDialogError(null);
+              setDialogMode("create");
+              setSelectedLabel(null);
+            }}
+          >
+            <Plus />
+          </SidebarGroupAction>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {labels.map((label) => (
+                <SidebarMenuItem key={label.id}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={activeLabelId === label.id}
+                    tooltip={label.name}
+                  >
+                    <Link
+                      to="/"
+                      search={{
+                        q: undefined,
+                        threads: undefined,
+                        category: undefined,
+                        label: label.id,
+                        compose: undefined,
+                        replyTo: undefined,
+                      }}
+                    >
+                      <Tag />
+                      <span className="flex-1">{label.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {label.unread > 0 ? (
+                    <SidebarMenuBadge>{label.unread}</SidebarMenuBadge>
+                  ) : null}
+                  <SidebarMenuAction
+                    showOnHover
+                    aria-label={`Edit ${label.name}`}
+                    onClick={() => {
+                      setDialogError(null);
+                      setDialogMode("edit");
+                      setSelectedLabel(label);
+                    }}
+                  >
+                    <PencilLine />
+                  </SidebarMenuAction>
+                </SidebarMenuItem>
+              ))}
+              {labels.length === 0 ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => {
+                      setDialogError(null);
+                      setDialogMode("create");
+                      setSelectedLabel(null);
+                    }}
+                  >
+                    <Plus />
+                    <span>Create label</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <ThemeToggle />
       </SidebarFooter>
       <SidebarRail />
+      <LabelDialog
+        open={dialogMode !== null}
+        mode={dialogMode ?? "create"}
+        initialName={selectedLabel?.name ?? ""}
+        isSubmitting={dialogBusy}
+        error={dialogError}
+        onOpenChange={(open) => {
+          if (!open) resetDialog();
+        }}
+        onSubmit={async (name) => {
+          setDialogError(null);
+          if (dialogMode === "edit" && selectedLabel) {
+            await updateLabelMutation.mutateAsync({ labelId: selectedLabel.id, name });
+            return;
+          }
+          await createLabelMutation.mutateAsync(name);
+        }}
+        onDelete={
+          dialogMode === "edit" && selectedLabel
+            ? async () => {
+                setDialogError(null);
+                await deleteLabelMutation.mutateAsync(selectedLabel.id);
+              }
+            : undefined
+        }
+      />
     </Sidebar>
   );
 }

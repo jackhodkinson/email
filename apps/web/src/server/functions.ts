@@ -115,6 +115,51 @@ function getThreadMessageCount(core: MailCore, threadId: string): number {
   return row?.cnt ?? 1;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function persistSentMessage(core: MailCore, messageId: string) {
+  const db = core.getDb();
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const sent = await core.getMessageFull(messageId);
+      core.insertMessageBatch(db, [
+        {
+          messageId: sent.messageId,
+          threadId: sent.threadId,
+          historyId: sent.historyId,
+          snippet: sent.snippet,
+          subject: sent.subject,
+          from: sent.from,
+          to: sent.to,
+          cc: sent.cc,
+          date: sent.date,
+          dateEpoch: sent.dateEpoch,
+          internalDate: sent.internalDate,
+          attachmentCount: sent.attachmentCount,
+          sizeEstimate: sent.sizeEstimate,
+          labelIds: sent.labelIds,
+          rawHeaders: sent.rawHeaders,
+        },
+      ]);
+      core.cacheBody(db, sent.messageId, sent.bodyText, sent.bodyRaw);
+      return;
+    } catch (error) {
+      if (attempt === 3) {
+        console.warn("Failed to persist sent message locally", {
+          messageId,
+          error,
+        });
+        return;
+      }
+
+      await sleep(200 * (attempt + 1));
+    }
+  }
+}
+
 export const bootstrapAccount = createServerFn({ method: "GET" }).handler(
   async () => {
     const core = await getCore();
@@ -328,6 +373,92 @@ const INBOX_SCOPED_CATEGORIES = new Set([
 
 export type CategoryKey = keyof typeof CATEGORY_LABELS;
 
+type MailViewFilter = {
+  labelFilter?: string;
+  extraWhere?: { clauses: string[]; params: any[] };
+};
+
+function buildMailViewFilter(options: {
+  category?: string;
+  labelId?: string;
+}): MailViewFilter {
+  if (options.labelId) {
+    return {
+      labelFilter: options.labelId,
+    };
+  }
+
+  const isArchive = options.category === "archive";
+  const labelFilter = isArchive
+    ? undefined
+    : options.category && options.category in CATEGORY_LABELS
+      ? CATEGORY_LABELS[options.category]
+      : "INBOX";
+
+  const clauses: string[] = [];
+  const params: any[] = [];
+
+  if (options.category && INBOX_SCOPED_CATEGORIES.has(options.category)) {
+    clauses.push(
+      "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'INBOX')",
+    );
+  }
+  if (isArchive) {
+    clauses.push(
+      "NOT EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'INBOX')",
+    );
+  }
+  if (options.category === "unread") {
+    clauses.push(
+      "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'UNREAD')",
+    );
+  }
+
+  return {
+    labelFilter,
+    ...(clauses.length > 0 ? { extraWhere: { clauses, params } } : {}),
+  };
+}
+
+function messageMatchesMailView(
+  labelIds: string[],
+  options: {
+    category?: string;
+    labelId?: string;
+  },
+): boolean {
+  if (options.labelId) {
+    return labelIds.includes(options.labelId);
+  }
+
+  const category = options.category;
+  if (!category) {
+    return labelIds.includes("INBOX");
+  }
+  if (category === "archive") {
+    return !labelIds.includes("INBOX");
+  }
+  if (category === "unread") {
+    return labelIds.includes("INBOX") && labelIds.includes("UNREAD");
+  }
+
+  const categoryLabel = CATEGORY_LABELS[category];
+  if (!categoryLabel) return labelIds.includes("INBOX");
+  if (INBOX_SCOPED_CATEGORIES.has(category)) {
+    return labelIds.includes("INBOX") && labelIds.includes(categoryLabel);
+  }
+  return labelIds.includes(categoryLabel);
+}
+
+function mergeExtraWhere(
+  ...parts: Array<{ clauses: string[]; params: any[] } | undefined>
+): { clauses: string[]; params: any[] } | undefined {
+  const clauses = parts.flatMap((part) => part?.clauses ?? []);
+  const params = parts.flatMap((part) => part?.params ?? []);
+  if (clauses.length === 0) return undefined;
+  return { clauses, params };
+}
+
 export const getThreadedInboxEmails = createServerFn({ method: "GET" })
   .inputValidator(
     (data: {
@@ -335,6 +466,7 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
       limit?: number;
       threadsOnly?: boolean;
       category?: string;
+      labelId?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -343,39 +475,15 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
     if (!isReady) return { threads: [], accountId: null };
 
     const db = core.getDb();
-
-    const isArchive = data.category === "archive";
-    const labelFilter = isArchive
-      ? undefined
-      : data.category && data.category in CATEGORY_LABELS
-        ? CATEGORY_LABELS[data.category]
-        : "INBOX";
-
-    const extraClauses: string[] = [];
-    const extraParams: any[] = [];
-
-    if (data.category && INBOX_SCOPED_CATEGORIES.has(data.category)) {
-      extraClauses.push(
-        "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'INBOX')",
-      );
-    }
-    if (isArchive) {
-      extraClauses.push(
-        "NOT EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'INBOX')",
-      );
-    }
-    if (data.category === "unread") {
-      extraClauses.push(
-        "EXISTS (SELECT 1 FROM message_labels ml2 WHERE ml2.message_id = m.message_id AND ml2.label_id = 'UNREAD')",
-      );
-    }
+    const filter = buildMailViewFilter({
+      category: data.category,
+      labelId: data.labelId,
+    });
     const rows = core.queryThreads(db, {
-      labelFilter,
+      labelFilter: filter.labelFilter,
       maxResults: data.limit || 50,
       ...(data.threadsOnly ? { minThreadCount: 2 } : {}),
-      ...(extraClauses.length > 0
-        ? { extraWhere: { clauses: extraClauses, params: extraParams } }
-        : {}),
+      ...(filter.extraWhere ? { extraWhere: filter.extraWhere } : {}),
     });
 
     return {
@@ -386,7 +494,13 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
 
 export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
   .inputValidator(
-    (data: { accountId?: string; query: string; limit?: number }) => data,
+    (data: {
+      accountId?: string;
+      query: string;
+      limit?: number;
+      category?: string;
+      labelId?: string;
+    }) => data,
   )
   .handler(async ({ data }) => {
     const core = await getCore();
@@ -395,18 +509,27 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
 
     const db = core.getDb();
     const limit = data.limit || 50;
+    const filter = buildMailViewFilter({
+      category: data.category,
+      labelId: data.labelId,
+    });
 
     // Parse Gmail-style query (from:, to:, is:unread, etc.)
     const parsed = core.parseGmailQuery(data.query);
 
     // If the query has structured operators that can run locally, use queryThreads
     if (parsed.canRunLocally && parsed.whereClauses.length > 0) {
-      const rows = core.queryThreads(db, {
-        maxResults: limit,
-        extraWhere: {
+      const extraWhere = mergeExtraWhere(
+        filter.extraWhere,
+        {
           clauses: parsed.whereClauses,
           params: parsed.params,
         },
+      );
+      const rows = core.queryThreads(db, {
+        labelFilter: filter.labelFilter,
+        maxResults: limit,
+        ...(extraWhere ? { extraWhere } : {}),
       });
 
       return {
@@ -423,6 +546,14 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
     const threads: Array<ReturnType<typeof toThreadSummary>> = [];
 
     for (const hit of hits) {
+      if (
+        !messageMatchesMailView(hit.message.labelIds, {
+          category: data.category,
+          labelId: data.labelId,
+        })
+      ) {
+        continue;
+      }
       if (seenThreadIds.has(hit.message.threadId)) continue;
       seenThreadIds.add(hit.message.threadId);
       threads.push(
@@ -438,6 +569,76 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
       threads,
       accountId: DEFAULT_ACCOUNT_ID,
     };
+  });
+
+export const getUserLabels = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const core = await getCore();
+    const isReady = await ensureSynced(core);
+    if (!isReady) return { labels: [] as Array<{ id: string; name: string; unread: number }> };
+
+    const db = core.getDb();
+    const labels = core.getLabels(db)
+      .filter((label) => label.type === "user")
+      .map((label) => ({
+        id: label.labelId,
+        name: label.name,
+        unread: core.countMessages(db, {
+          labelFilter: label.labelId,
+          unread: true,
+        }),
+      }));
+
+    return { labels };
+  },
+);
+
+export const createLabelAction = createServerFn({ method: "POST" })
+  .inputValidator((data: { name: string }) => data)
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    const created = await core.createLabel(data.name.trim());
+    const db = core.getDb();
+    core.upsertLabels(db, [{ id: created.id, name: created.name, type: "user" }]);
+
+    return created;
+  });
+
+export const updateLabelAction = createServerFn({ method: "POST" })
+  .inputValidator((data: { labelId: string; name: string }) => data)
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    const updated = await core.updateLabel(data.labelId, data.name.trim());
+    const db = core.getDb();
+    core.updateStoredLabel(db, updated.id, updated.name);
+
+    return updated;
+  });
+
+export const deleteLabelAction = createServerFn({ method: "POST" })
+  .inputValidator((data: { labelId: string }) => data)
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    await core.deleteLabel(data.labelId);
+    const db = core.getDb();
+    core.deleteStoredLabel(db, data.labelId);
+
+    return { success: true };
   });
 
 export const getThreadEmails = createServerFn({ method: "GET" })
@@ -601,6 +802,9 @@ export const sendEmailAction = createServerFn({ method: "POST" })
         cc: data.cc,
         bcc: data.bcc,
       });
+      if (result.messageId) {
+        void persistSentMessage(core, result.messageId);
+      }
       return { messageId: result.messageId, threadId: result.threadId };
     }
 
@@ -611,6 +815,9 @@ export const sendEmailAction = createServerFn({ method: "POST" })
       subject: data.subject,
       body: data.body,
     });
+    if (result.messageId) {
+      void persistSentMessage(core, result.messageId);
+    }
     return { messageId: result.messageId, threadId: result.threadId };
   });
 
@@ -664,6 +871,30 @@ export const addToInboxAction = createServerFn({ method: "POST" })
     await core.addThreadToInbox(data.threadId);
     const db = core.getDb();
     core.addThreadLabels(db, data.threadId, ["INBOX"]);
+
+    return { success: true };
+  });
+
+export const setThreadLabelsAction = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { threadId: string; addLabelIds: string[]; removeLabelIds: string[] }) => data,
+  )
+  .handler(async ({ data }) => {
+    const core = await getCore();
+
+    if (!core.isAuthenticated()) {
+      throw new Error("Not authenticated. Run 'cmail auth' first.");
+    }
+
+    await core.modifyThreadLabels(data.threadId, data.addLabelIds, data.removeLabelIds);
+    const db = core.getDb();
+
+    if (data.addLabelIds.length > 0) {
+      core.addThreadLabels(db, data.threadId, data.addLabelIds);
+    }
+    if (data.removeLabelIds.length > 0) {
+      core.removeThreadLabels(db, data.threadId, data.removeLabelIds);
+    }
 
     return { success: true };
   });

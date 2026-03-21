@@ -5,6 +5,7 @@ import { EmailItem } from "./email-item";
 
 interface Email {
   id: string;
+  threadId: string;
   sender: string;
   subject: string | null;
   snippet: string | null;
@@ -12,6 +13,7 @@ interface Email {
   isRead: boolean;
   hasAttachments: boolean;
   threadCount?: number;
+  labels: string[];
 }
 
 interface EmailListProps {
@@ -20,6 +22,13 @@ interface EmailListProps {
   listRef?: RefObject<HTMLDivElement | null>;
   onSelectEmail?: (id: string) => void;
   onHoverEmail?: (id: string) => void;
+  availableLabels?: Array<{ id: string; name: string }>;
+  onToggleThreadLabel?: (
+    threadId: string,
+    labelId: string,
+    enabled: boolean,
+  ) => void;
+  labelsBusy?: boolean;
 }
 
 const ESTIMATED_ROW_HEIGHT = 76;
@@ -30,6 +39,9 @@ export function EmailList({
   listRef,
   onSelectEmail,
   onHoverEmail,
+  availableLabels = [],
+  onToggleThreadLabel,
+  labelsBusy = false,
 }: EmailListProps) {
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = listRef ?? internalRef;
@@ -99,6 +111,9 @@ export function EmailList({
                   threadCount={email.threadCount}
                   onSelectEmail={onSelectEmail}
                   onHoverEmail={onHoverEmail}
+                  availableLabels={availableLabels}
+                  onToggleThreadLabel={onToggleThreadLabel}
+                  labelsBusy={labelsBusy}
                 />
               </div>
             );

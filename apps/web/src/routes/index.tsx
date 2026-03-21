@@ -23,6 +23,8 @@ export const Route = createFileRoute("/")({
       search.threads === true || search.threads === "true" ? true : undefined,
     category:
       typeof search.category === "string" ? search.category : undefined,
+    label:
+      typeof search.label === "string" ? search.label : undefined,
     compose:
       search.compose === "new" || search.compose === "reply"
         ? search.compose
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/")({
     q: search.q,
     threads: search.threads,
     category: search.category,
+    label: search.label,
     compose: search.compose,
     replyTo: search.replyTo,
   }),
@@ -40,21 +43,31 @@ export const Route = createFileRoute("/")({
     const result = deps.q
       ? {
           ...(await searchThreadedInboxEmails({
-            data: { query: deps.q },
+            data: {
+              query: deps.q,
+              category: deps.category,
+              labelId: deps.label,
+            },
           })),
           query: deps.q as string | undefined,
           threadsOnly: !!deps.threads,
           category: deps.category,
+          label: deps.label,
           compose: deps.compose,
           replyTo: deps.replyTo,
         }
       : {
           ...(await getThreadedInboxEmails({
-            data: { threadsOnly: !!deps.threads, category: deps.category },
+            data: {
+              threadsOnly: !!deps.threads,
+              category: deps.category,
+              labelId: deps.label,
+            },
           })),
           query: undefined as string | undefined,
           threadsOnly: !!deps.threads,
           category: deps.category,
+          label: deps.label,
           compose: deps.compose,
           replyTo: deps.replyTo,
         };
@@ -65,6 +78,7 @@ export const Route = createFileRoute("/")({
       query: deps.q,
       threadsOnly: !!deps.threads,
       category: deps.category,
+      label: deps.label,
     };
     queryClient.setQueryData(inboxQueryOptions(inboxOpts).queryKey, {
       threads: result.threads,
@@ -83,7 +97,7 @@ export const Route = createFileRoute("/")({
 });
 
 function InboxPage() {
-  const { threads, accountId, query, threadsOnly, category, compose, replyTo } =
+  const { threads, accountId, query, threadsOnly, category, label, compose, replyTo } =
     Route.useLoaderData();
   const navigate = useNavigate();
   const searchBoxRef = useSearchBox();
@@ -106,12 +120,13 @@ function InboxPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose,
           replyTo,
         },
       });
     },
-    [category, compose, navigate, query, replyTo, threadsOnly],
+    [category, compose, label, navigate, query, replyTo, threadsOnly],
   );
 
   const handleOpenEmailFullscreen = useCallback(
@@ -123,6 +138,7 @@ function InboxPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose,
           replyTo,
         },
@@ -133,16 +149,16 @@ function InboxPage() {
         })) as any,
       });
     },
-    [category, compose, navigate, query, replyTo, threadsOnly],
+    [category, compose, label, navigate, query, replyTo, threadsOnly],
   );
 
   const handleToggleThreadsOnly = useCallback(() => {
     const nextThreads = !threadsOnly || undefined;
     navigate({
       to: "/",
-      search: { q: query, threads: nextThreads, category, compose, replyTo },
+      search: { q: query, threads: nextThreads, category, label, compose, replyTo },
     });
-  }, [category, compose, navigate, query, replyTo, threadsOnly]);
+  }, [category, compose, label, navigate, query, replyTo, threadsOnly]);
 
   const handleComposeNew = useCallback(() => {
     navigate({
@@ -151,11 +167,12 @@ function InboxPage() {
         q: query,
         threads: threadsOnly || undefined,
         category,
+        label,
         compose: "new",
         replyTo: undefined,
       },
     });
-  }, [category, navigate, query, threadsOnly]);
+  }, [category, label, navigate, query, threadsOnly]);
 
   const handleComposeReply = useCallback(
     (messageId: string) => {
@@ -165,12 +182,13 @@ function InboxPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose: "reply",
           replyTo: messageId,
         },
       });
     },
-    [category, navigate, query, threadsOnly],
+    [category, label, navigate, query, threadsOnly],
   );
 
   const handleComposeOpenChange = useCallback(
@@ -182,12 +200,13 @@ function InboxPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose: undefined,
           replyTo: undefined,
         },
       });
     },
-    [category, navigate, query, threadsOnly],
+    [category, label, navigate, query, threadsOnly],
   );
 
   const composeOpen = compose === "new";
@@ -209,7 +228,14 @@ function InboxPage() {
           onOpenEmailFullscreen={handleOpenEmailFullscreen}
           onHoverEmail={handleHoverEmail}
           focusSearch={focusSearch}
-          searchParams={query ? { q: query } : undefined}
+          searchParams={{
+            q: query,
+            threads: threadsOnly || undefined,
+            category,
+            label,
+            compose,
+            replyTo,
+          }}
           accountId={accountId}
           threadsOnly={threadsOnly}
           onToggleThreadsOnly={handleToggleThreadsOnly}

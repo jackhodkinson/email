@@ -222,6 +222,15 @@ export function upsertLabels(db: Database, labels: { id: string; name: string; t
   tx();
 }
 
+export function updateLabel(db: Database, labelId: string, name: string): void {
+  db.run("UPDATE labels SET name = ? WHERE label_id = ?", [name, labelId]);
+}
+
+export function deleteLabel(db: Database, labelId: string): void {
+  db.run("DELETE FROM message_labels WHERE label_id = ?", [labelId]);
+  db.run("DELETE FROM labels WHERE label_id = ?", [labelId]);
+}
+
 // ─── Labels (query) ──────────────────────────────────────────────────
 
 export interface LabelRow {

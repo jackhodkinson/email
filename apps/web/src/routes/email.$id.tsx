@@ -27,6 +27,8 @@ export const Route = createFileRoute("/email/$id")({
       search.threads === true || search.threads === "true" ? true : undefined,
     category:
       typeof search.category === "string" ? search.category : undefined,
+    label:
+      typeof search.label === "string" ? search.label : undefined,
     compose:
       search.compose === "new" || search.compose === "reply"
         ? search.compose
@@ -37,6 +39,7 @@ export const Route = createFileRoute("/email/$id")({
     q: search.q,
     threads: search.threads,
     category: search.category,
+    label: search.label,
   }),
   loader: async ({ params, deps }) => {
     const queryClient = getQueryClient();
@@ -44,6 +47,7 @@ export const Route = createFileRoute("/email/$id")({
       query: deps.q,
       threadsOnly: !!deps.threads,
       category: deps.category,
+      label: deps.label,
     };
 
     // ensureQueryData returns cached data instantly when fresh (within
@@ -74,6 +78,7 @@ function EmailDetailPage() {
   const query = search.q;
   const threadsOnly = !!search.threads;
   const category = search.category;
+  const label = search.label;
   const compose = search.compose;
   const replyTo = search.replyTo;
   const navigate = useNavigate();
@@ -93,7 +98,7 @@ function EmailDetailPage() {
   // The loader seeds the cache; this hook reads from it (instant) and
   // keeps the previous list visible while a background refetch runs.
   const { data: inboxData } = useQuery({
-    ...inboxQueryOptions({ query, threadsOnly, category }),
+    ...inboxQueryOptions({ query, threadsOnly, category, label }),
     placeholderData: (prev) => prev,
   });
   const threads = inboxData?.threads ?? [];
@@ -220,6 +225,7 @@ function EmailDetailPage() {
             q: query,
             threads: threadsOnly || undefined,
             category,
+            label,
             compose,
             replyTo,
           },
@@ -231,13 +237,14 @@ function EmailDetailPage() {
             q: query,
             threads: threadsOnly || undefined,
             category,
+            label,
             compose: undefined,
             replyTo: undefined,
           },
         });
       }
     },
-    [archiveMutation, category, compose, navigate, query, replyTo, threadsOnly, visibleThreads],
+    [archiveMutation, category, compose, label, navigate, query, replyTo, threadsOnly, visibleThreads],
   );
 
   const handleUndoArchive = useCallback(() => {
@@ -260,11 +267,12 @@ function EmailDetailPage() {
         q: query,
         threads: threadsOnly || undefined,
         category,
+        label,
         compose,
         replyTo,
       },
     });
-  }, [category, compose, navigate, query, replyTo, threadsOnly, unarchiveMutation]);
+  }, [category, compose, label, navigate, query, replyTo, threadsOnly, unarchiveMutation]);
 
   const handleSelectEmail = useCallback(
     (id: string) => {
@@ -284,6 +292,7 @@ function EmailDetailPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose,
           replyTo,
         },
@@ -292,6 +301,7 @@ function EmailDetailPage() {
     [
       category,
       compose,
+      label,
       navigate,
       query,
       queryClient,
@@ -311,6 +321,7 @@ function EmailDetailPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose,
           replyTo,
         },
@@ -321,7 +332,7 @@ function EmailDetailPage() {
         })) as any,
       });
     },
-    [category, compose, navigate, query, replyTo, threadsOnly],
+    [category, compose, label, navigate, query, replyTo, threadsOnly],
   );
 
   const handleFullscreenRequestHandled = useCallback(() => {
@@ -332,6 +343,7 @@ function EmailDetailPage() {
         q: query,
         threads: threadsOnly || undefined,
         category,
+        label,
         compose,
         replyTo,
       },
@@ -344,7 +356,7 @@ function EmailDetailPage() {
         return next;
       }) as any,
     });
-  }, [category, compose, navigate, query, replyTo, selectedId, threadsOnly]);
+  }, [category, compose, label, navigate, query, replyTo, selectedId, threadsOnly]);
 
   // Prefetch email detail on hover so click is instant
   const handleHoverEmail = useCallback(
@@ -359,9 +371,9 @@ function EmailDetailPage() {
     navigate({
       to: "/email/$id",
       params: { id: selectedId },
-      search: { q: query, threads: nextThreads, category, compose, replyTo },
+      search: { q: query, threads: nextThreads, category, label, compose, replyTo },
     });
-  }, [category, compose, navigate, query, replyTo, selectedId, threadsOnly]);
+  }, [category, compose, label, navigate, query, replyTo, selectedId, threadsOnly]);
 
   const handleComposeNew = useCallback(() => {
     navigate({
@@ -371,11 +383,12 @@ function EmailDetailPage() {
         q: query,
         threads: threadsOnly || undefined,
         category,
+        label,
         compose: "new",
         replyTo: undefined,
       },
     });
-  }, [category, navigate, query, selectedId, threadsOnly]);
+  }, [category, label, navigate, query, selectedId, threadsOnly]);
 
   const handleComposeReply = useCallback(
     (messageId: string) => {
@@ -386,12 +399,13 @@ function EmailDetailPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose: "reply",
           replyTo: messageId,
         },
       });
     },
-    [category, navigate, query, selectedId, threadsOnly],
+    [category, label, navigate, query, selectedId, threadsOnly],
   );
 
   const handleComposeOpenChange = useCallback(
@@ -404,12 +418,13 @@ function EmailDetailPage() {
           q: query,
           threads: threadsOnly || undefined,
           category,
+          label,
           compose: undefined,
           replyTo: undefined,
         },
       });
     },
-    [category, navigate, query, selectedId, threadsOnly],
+    [category, label, navigate, query, selectedId, threadsOnly],
   );
 
   const composeOpen = compose === "new";
@@ -440,7 +455,14 @@ function EmailDetailPage() {
           onOpenEmailFullscreen={handleOpenEmailFullscreen}
           onHoverEmail={handleHoverEmail}
           focusSearch={focusSearch}
-          searchParams={query ? { q: query } : undefined}
+          searchParams={{
+            q: query,
+            threads: threadsOnly || undefined,
+            category,
+            label,
+            compose,
+            replyTo,
+          }}
           accountId={accountId}
           threadsOnly={threadsOnly}
           onToggleThreadsOnly={handleToggleThreadsOnly}
@@ -450,9 +472,10 @@ function EmailDetailPage() {
           onRemoveFromInbox={handleRemoveFromInbox}
           onUndoArchive={handleUndoArchive}
           replyTo={
-            isInlineReply && replyEmail
+            isInlineReply && replyEmail && threadId
               ? {
                   messageId: replyTo!,
+                  threadId,
                   sender: replyEmail.sender,
                   subject: replyEmail.subject,
                 }
@@ -484,13 +507,14 @@ function NotFound() {
       </p>
       <Link
         to="/"
-        search={{
-          q: undefined,
-          threads: undefined,
-          category: undefined,
-          compose: undefined,
-          replyTo: undefined,
-        }}
+          search={{
+            q: undefined,
+            threads: undefined,
+            category: undefined,
+            label: undefined,
+            compose: undefined,
+            replyTo: undefined,
+          }}
         className="link-primary inline-flex items-center gap-2"
       >
         <svg

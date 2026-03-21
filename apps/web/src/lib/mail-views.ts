@@ -24,6 +24,7 @@ type InboxRouteSearch = {
   q: undefined;
   threads: undefined;
   category: string | undefined;
+  label: string | undefined;
   compose: undefined;
   replyTo: undefined;
 };
@@ -70,6 +71,7 @@ export const inboxView: InboxMailView = {
       q: undefined,
       threads: undefined,
       category: undefined,
+      label: undefined,
       compose: undefined,
       replyTo: undefined,
     },
@@ -89,6 +91,7 @@ export const inboxCategoryViews: InboxMailView[] = [
         q: undefined,
         threads: undefined,
         category: "primary",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -106,6 +109,7 @@ export const inboxCategoryViews: InboxMailView[] = [
         q: undefined,
         threads: undefined,
         category: "promotions",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -123,6 +127,7 @@ export const inboxCategoryViews: InboxMailView[] = [
         q: undefined,
         threads: undefined,
         category: "social",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -140,6 +145,7 @@ export const inboxCategoryViews: InboxMailView[] = [
         q: undefined,
         threads: undefined,
         category: "updates",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -157,6 +163,7 @@ export const inboxCategoryViews: InboxMailView[] = [
         q: undefined,
         threads: undefined,
         category: "forums",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -177,6 +184,7 @@ export const secondaryMailViews: MailView[] = [
         q: undefined,
         threads: undefined,
         category: "starred",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -193,6 +201,7 @@ export const secondaryMailViews: MailView[] = [
         q: undefined,
         threads: undefined,
         category: "archive",
+        label: undefined,
         compose: undefined,
         replyTo: undefined,
       },
@@ -222,9 +231,11 @@ export function isInboxCategoryView(category?: string) {
 
 export function getActiveMailViewId(options: {
   category?: string;
+  label?: string;
   isContactsRoute: boolean;
 }) {
   if (options.isContactsRoute) return "contacts";
+  if (options.label) return "label";
   if (options.category && commandPaletteViews.some((view) => view.id === options.category)) {
     return options.category;
   }

@@ -9,10 +9,18 @@ export type { SearchBoxHandle };
 interface SearchBoxProps {
   query: string | undefined;
   threadsOnly: boolean;
+  category?: string;
+  label?: string;
   ref?: React.Ref<SearchBoxHandle>;
 }
 
-export function SearchBox({ ref, query, threadsOnly }: SearchBoxProps) {
+export function SearchBox({
+  ref,
+  query,
+  threadsOnly,
+  category,
+  label,
+}: SearchBoxProps) {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const draft$ = useObservable<string | null>(null);
@@ -41,7 +49,8 @@ export function SearchBox({ ref, query, threadsOnly }: SearchBoxProps) {
       search: {
         q: trimmed,
         threads: threadsOnly || undefined,
-        category: undefined,
+        category,
+        label,
         compose: undefined,
         replyTo: undefined,
       },
@@ -55,7 +64,8 @@ export function SearchBox({ ref, query, threadsOnly }: SearchBoxProps) {
       search: {
         q: undefined,
         threads: threadsOnly || undefined,
-        category: undefined,
+        category,
+        label,
         compose: undefined,
         replyTo: undefined,
       },

@@ -4,6 +4,7 @@ import {
   getSidebarCounts,
   getThreadEmails,
   getThreadedInboxEmails,
+  getUserLabels,
   searchThreadedInboxEmails,
 } from "../server/functions";
 
@@ -31,20 +32,24 @@ export function inboxQueryOptions(opts: {
   query?: string;
   threadsOnly?: boolean;
   category?: string;
+  label?: string;
 }) {
   return queryOptions({
-    queryKey: [
-      "email",
-      "inbox",
-      { q: opts.query, threads: !!opts.threadsOnly, category: opts.category },
-    ],
+    queryKey: inboxQueryKey(opts),
     queryFn: () =>
       opts.query
-        ? searchThreadedInboxEmails({ data: { query: opts.query } })
+        ? searchThreadedInboxEmails({
+            data: {
+              query: opts.query,
+              category: opts.category,
+              labelId: opts.label,
+            },
+          })
         : getThreadedInboxEmails({
             data: {
               threadsOnly: !!opts.threadsOnly,
               category: opts.category,
+              labelId: opts.label,
             },
           }),
     staleTime: INBOX_STALE_TIME,
@@ -52,9 +57,18 @@ export function inboxQueryOptions(opts: {
   });
 }
 
+export function userLabelsQueryOptions() {
+  return queryOptions({
+    queryKey: ["email", "labels"],
+    queryFn: () => getUserLabels(),
+    staleTime: SIDEBAR_COUNTS_STALE_TIME,
+    gcTime: 5 * 60 * 1000,
+  });
+}
+
 export function emailDetailQueryOptions(emailId: string) {
   return queryOptions({
-    queryKey: ["email", "detail", emailId],
+    queryKey: emailDetailQueryKey(emailId),
     queryFn: () => getEmailById({ data: { emailId } }),
     staleTime: EMAIL_STALE_TIME,
     // Keep unused entries in cache for 30 min so back-navigation is instant
@@ -73,11 +87,37 @@ export function sidebarCountsQueryOptions() {
 
 export function threadEmailsQueryOptions(threadId: string) {
   return queryOptions({
-    queryKey: ["email", "thread", threadId],
+    queryKey: threadEmailsQueryKey(threadId),
     queryFn: () => getThreadEmails({ data: { threadId } }),
     staleTime: EMAIL_STALE_TIME,
     gcTime: 30 * 60 * 1000,
   });
+}
+
+export function inboxQueryKey(opts: {
+  query?: string;
+  threadsOnly?: boolean;
+  category?: string;
+  label?: string;
+}) {
+  return [
+    "email",
+    "inbox",
+    {
+      q: opts.query,
+      threads: !!opts.threadsOnly,
+      category: opts.category,
+      label: opts.label,
+    },
+  ] as const;
+}
+
+export function emailDetailQueryKey(emailId: string) {
+  return ["email", "detail", emailId] as const;
+}
+
+export function threadEmailsQueryKey(threadId: string) {
+  return ["email", "thread", threadId] as const;
 }
 
 // ---------------------------------------------------------------------------

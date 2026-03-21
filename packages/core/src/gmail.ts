@@ -573,6 +573,29 @@ export async function createLabel(name: string): Promise<{ id: string; name: str
   return { id: res.data.id!, name: res.data.name! };
 }
 
+export async function updateLabel(
+  labelId: string,
+  name: string
+): Promise<{ id: string; name: string }> {
+  const gmail = getGmailClient();
+  const res = await gmail.users.labels.patch({
+    userId: "me",
+    id: labelId,
+    requestBody: {
+      name,
+    },
+  });
+  return { id: res.data.id!, name: res.data.name! };
+}
+
+export async function deleteLabel(labelId: string): Promise<void> {
+  const gmail = getGmailClient();
+  await gmail.users.labels.delete({
+    userId: "me",
+    id: labelId,
+  });
+}
+
 export async function modifyLabels(
   messageId: string,
   addLabelIds: string[],
@@ -582,6 +605,22 @@ export async function modifyLabels(
   await gmail.users.messages.modify({
     userId: "me",
     id: messageId,
+    requestBody: {
+      addLabelIds,
+      removeLabelIds,
+    },
+  });
+}
+
+export async function modifyThreadLabels(
+  threadId: string,
+  addLabelIds: string[],
+  removeLabelIds: string[]
+): Promise<void> {
+  const gmail = getGmailClient();
+  await gmail.users.threads.modify({
+    userId: "me",
+    id: threadId,
     requestBody: {
       addLabelIds,
       removeLabelIds,
@@ -608,21 +647,11 @@ export async function addToInbox(messageId: string): Promise<void> {
 }
 
 export async function removeThreadFromInbox(threadId: string): Promise<void> {
-  const gmail = getGmailClient();
-  await gmail.users.threads.modify({
-    userId: "me",
-    id: threadId,
-    requestBody: { removeLabelIds: ["INBOX"] },
-  });
+  await modifyThreadLabels(threadId, [], ["INBOX"]);
 }
 
 export async function addThreadToInbox(threadId: string): Promise<void> {
-  const gmail = getGmailClient();
-  await gmail.users.threads.modify({
-    userId: "me",
-    id: threadId,
-    requestBody: { addLabelIds: ["INBOX"] },
-  });
+  await modifyThreadLabels(threadId, ["INBOX"], []);
 }
 
 // ─── Sync API functions ──────────────────────────────────────────────

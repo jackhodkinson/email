@@ -64,7 +64,14 @@ export function createCommands(ctx: CommandContext): Record<string, Command> {
       name: "Back to inbox",
       shortcut: "Escape",
       execute: () => {
-        ctx.navigate("/", undefined, { q: undefined });
+        ctx.navigate("/", undefined, {
+          q: undefined,
+          threads: undefined,
+          category: undefined,
+          label: undefined,
+          compose: undefined,
+          replyTo: undefined,
+        });
       },
     },
 
