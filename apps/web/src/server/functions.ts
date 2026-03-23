@@ -383,9 +383,16 @@ function buildMailViewFilter(options: {
   labelId?: string;
 }): MailViewFilter {
   if (options.labelId) {
-    return {
-      labelFilter: options.labelId,
-    };
+    const filter: MailViewFilter = { labelFilter: options.labelId };
+    if (options.category) {
+      filter.extraWhere = {
+        clauses: [
+          "EXISTS (SELECT 1 FROM message_labels ml_inbox WHERE ml_inbox.message_id = m.message_id AND ml_inbox.label_id = 'INBOX')",
+        ],
+        params: [],
+      };
+    }
+    return filter;
   }
 
   const isArchive = options.category === "archive";
@@ -428,6 +435,9 @@ function messageMatchesMailView(
   },
 ): boolean {
   if (options.labelId) {
+    if (options.category) {
+      return labelIds.includes(options.labelId) && labelIds.includes("INBOX");
+    }
     return labelIds.includes(options.labelId);
   }
 
@@ -578,6 +588,14 @@ export const getUserLabels = createServerFn({ method: "GET" }).handler(
     if (!isReady) return { labels: [] as Array<{ id: string; name: string; unread: number }> };
 
     const db = core.getDb();
+    const inboxFilter = {
+      extraWhere: {
+        clauses: [
+          "EXISTS (SELECT 1 FROM message_labels ml_inbox WHERE ml_inbox.message_id = m.message_id AND ml_inbox.label_id = 'INBOX')",
+        ],
+        params: [] as any[],
+      },
+    };
     const labels = core.getLabels(db)
       .filter((label) => label.type === "user")
       .map((label) => ({
@@ -586,6 +604,7 @@ export const getUserLabels = createServerFn({ method: "GET" }).handler(
         unread: core.countMessages(db, {
           labelFilter: label.labelId,
           unread: true,
+          ...(label.name.startsWith("Cmail/") ? inboxFilter : {}),
         }),
       }));
 

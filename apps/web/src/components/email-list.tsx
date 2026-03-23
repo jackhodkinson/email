@@ -19,6 +19,7 @@ interface Email {
 interface EmailListProps {
   emails: Email[];
   selectedIndex?: number;
+  selectedEmailIds?: Set<string>;
   listRef?: RefObject<HTMLDivElement | null>;
   onSelectEmail?: (id: string) => void;
   onHoverEmail?: (id: string) => void;
@@ -36,6 +37,7 @@ const ESTIMATED_ROW_HEIGHT = 76;
 export function EmailList({
   emails,
   selectedIndex = -1,
+  selectedEmailIds,
   listRef,
   onSelectEmail,
   onHoverEmail,
@@ -70,6 +72,7 @@ export function EmailList({
       ref={scrollRef}
       role="listbox"
       aria-label="Email messages"
+      aria-multiselectable={Boolean(selectedEmailIds && selectedEmailIds.size > 1)}
       aria-activedescendant={selectedId}
       tabIndex={-1}
       className="email-list flex-1 min-h-0 overflow-auto"
@@ -89,7 +92,10 @@ export function EmailList({
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const email = emails[virtualRow.index];
             if (!email) return null;
-            const isSelected = virtualRow.index === selectedIndex;
+            const isSelected =
+              selectedEmailIds && selectedEmailIds.size > 0
+                ? selectedEmailIds.has(email.id)
+                : virtualRow.index === selectedIndex;
 
             return (
               <div

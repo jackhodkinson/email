@@ -23,7 +23,7 @@ interface FocusManagerValue {
 const FocusManagerContext = createContext<FocusManagerValue | null>(null);
 
 function hasDialogOverlay() {
-  return !!document.querySelector("[data-slot='dialog-overlay']");
+  return !!document.querySelector("[data-slot='dialog-overlay'][data-state='open']");
 }
 
 export function FocusManagerProvider({

@@ -70,6 +70,7 @@ interface EmailSplitViewProps {
   onComposeReply: (messageId: string) => void;
   onToggleRead?: (messageId: string, isRead: boolean) => void;
   onRemoveFromInbox?: (messageId: string) => void;
+  onRemoveManyFromInbox?: (messageIds: string[]) => void;
   onUndoArchive?: () => void;
   replyTo?: {
     messageId: string;
@@ -78,6 +79,7 @@ interface EmailSplitViewProps {
     subject: string | null;
   } | null;
   onCloseReply?: () => void;
+  onDeselectEmail?: () => void;
   onOpenEmailFullscreen?: (id: string) => void;
   fullscreenRequestKey?: number | null;
   onFullscreenRequestHandled?: () => void;
@@ -123,9 +125,11 @@ export function EmailSplitView({
   onComposeReply,
   onToggleRead,
   onRemoveFromInbox,
+  onRemoveManyFromInbox,
   onUndoArchive,
   replyTo,
   onCloseReply,
+  onDeselectEmail,
   onOpenEmailFullscreen,
   fullscreenRequestKey = null,
   onFullscreenRequestHandled,
@@ -141,6 +145,8 @@ export function EmailSplitView({
     activeSurface: "none" as "none" | "list" | "viewer",
     pendingViewerFocus: false,
     isFullscreen: false,
+    isListOnly: false,
+    selectedEmailIds: [] as string[],
   });
 
   const findViewerFocusTarget = useCallback((viewer: HTMLElement) => {
@@ -154,6 +160,28 @@ export function EmailSplitView({
   const activeSurface = useValue(() => state$.activeSurface.get());
   const pendingViewerFocus = useValue(() => state$.pendingViewerFocus.get());
   const isFullscreen = useValue(() => state$.isFullscreen.get());
+  const isListOnly = useValue(() => state$.isListOnly.get());
+  const selectedEmailIds = useValue(() => state$.selectedEmailIds.get());
+  const selectedEmailIdSet = useMemo(
+    () => new Set(selectedEmailIds),
+    [selectedEmailIds],
+  );
+
+  // Exit list-only mode when an email is selected
+  useEffect(() => {
+    if (selectedEmailId) {
+      state$.isListOnly.set(false);
+    }
+  }, [selectedEmailId]);
+
+  useEffect(() => {
+    const visibleIds = new Set(emails.map((item) => item.id));
+    const filtered = selectedEmailIds.filter((id) => visibleIds.has(id));
+    if (filtered.length !== selectedEmailIds.length) {
+      state$.selectedEmailIds.set(filtered);
+    }
+  }, [emails, selectedEmailIds, state$]);
+
   const { data: labelData } = useQuery(userLabelsQueryOptions());
   const availableLabels = labelData?.labels.map((label) => ({
     id: label.id,
@@ -281,14 +309,18 @@ export function EmailSplitView({
   const selectIndex = useCallback(
     (index: number) => {
       if (index < 0 || index >= emails.length) return;
+      state$.selectedEmailIds.set([]);
       state$.localSelectedIndex.set(index);
-      onSelectEmail(emails[index].id);
+      if (!state$.isListOnly.get()) {
+        onSelectEmail(emails[index].id);
+      }
     },
-    [emails, onSelectEmail],
+    [emails, onSelectEmail, state$],
   );
 
   const handleSelectEmail = useCallback(
     (id: string) => {
+      state$.selectedEmailIds.set([]);
       const index = emails.findIndex((item) => item.id === id);
       if (index >= 0) {
         selectIndex(index);
@@ -318,7 +350,7 @@ export function EmailSplitView({
     [commands],
   );
 
-  const openSelectedFullscreen = useCallback(() => {
+  const openSelectedOrFullscreen = useCallback(() => {
     if (emails.length === 0) return;
     if (resolvedSelectedIndex < 0) {
       selectIndex(0);
@@ -328,22 +360,45 @@ export function EmailSplitView({
     const id = emails[resolvedSelectedIndex]?.id;
     if (!id) return;
 
+    // In list-only mode, Enter reopens the detail view without going fullscreen
+    if (state$.isListOnly.get()) {
+      state$.isListOnly.set(false);
+      onSelectEmail(id);
+      return;
+    }
+
     if (onOpenEmailFullscreen) {
       onOpenEmailFullscreen(id);
       return;
     }
 
     runCommand("openSelectedEmail");
-  }, [emails, onOpenEmailFullscreen, resolvedSelectedIndex, runCommand, selectIndex]);
+  }, [emails, onOpenEmailFullscreen, onSelectEmail, resolvedSelectedIndex, runCommand, selectIndex]);
+
+  const handleExitFullscreen = useCallback(() => {
+    state$.isFullscreen.set(false);
+    requestAnimationFrame(() => focusViewer());
+  }, [focusViewer]);
 
   const handleEscape = useCallback(() => {
     if (state$.isFullscreen.get()) {
       state$.isFullscreen.set(false);
+      requestAnimationFrame(() => focusViewer());
+      return;
+    }
+
+    if (selectedEmailId && onDeselectEmail) {
+      onDeselectEmail();
+      return;
+    }
+
+    if (!state$.isListOnly.get()) {
+      state$.isListOnly.set(true);
       return;
     }
 
     runCommand("goToInbox");
-  }, [runCommand, state$]);
+  }, [focusViewer, onDeselectEmail, runCommand, selectedEmailId, state$]);
 
   const listHotkeyOptions = useMemo(
     () => ({ target: listFocusRef, enabled: activeSurface === "list" }),
@@ -360,7 +415,7 @@ export function EmailSplitView({
 
   useHotkey("ArrowDown", () => runCommand("selectNextEmail"), listHotkeyOptions);
   useHotkey("ArrowUp", () => runCommand("selectPreviousEmail"), listHotkeyOptions);
-  useHotkey("Enter", openSelectedFullscreen, listHotkeyOptions);
+  useHotkey("Enter", openSelectedOrFullscreen, listHotkeyOptions);
   useHotkey("ArrowRight", () => runCommand("focusEmailViewer"), listHotkeyOptions);
   useHotkey("j", () => runCommand("selectNextEmail"), listHotkeyOptions);
   useHotkey("k", () => runCommand("selectPreviousEmail"), listHotkeyOptions);
@@ -368,18 +423,51 @@ export function EmailSplitView({
   useHotkey("Escape", handleEscape, listHotkeyOptions);
 
   const archiveSelected = useCallback(() => {
+    if (selectedEmailIds.length > 0) {
+      onRemoveManyFromInbox?.(selectedEmailIds);
+      state$.selectedEmailIds.set([]);
+      return;
+    }
+
     const id = selectedEmailId ?? emails[resolvedSelectedIndex]?.id;
     if (id) onRemoveFromInbox?.(id);
-  }, [emails, onRemoveFromInbox, resolvedSelectedIndex, selectedEmailId]);
+  }, [
+    emails,
+    onRemoveFromInbox,
+    onRemoveManyFromInbox,
+    resolvedSelectedIndex,
+    selectedEmailId,
+    selectedEmailIds,
+    state$,
+  ]);
 
   useHotkey("e", archiveSelected, listHotkeyOptions);
   useHotkey("e", archiveSelected, viewerHotkeyOptions);
+
+  const selectAllEmails = useCallback(() => {
+    if (emails.length === 0) return;
+    state$.selectedEmailIds.set(emails.map((item) => item.id));
+  }, [emails, state$]);
+
+  useHotkey("Meta+a", selectAllEmails, listHotkeyOptions);
 
   const undoHotkeyOptions = useMemo(
     () => ({ enabled: activeSurface !== "none" }),
     [activeSurface],
   );
   useHotkey("Meta+z", () => onUndoArchive?.(), undoHotkeyOptions);
+
+  const copySelectedEmailRef = useCallback(() => {
+    const idx = resolvedSelectedIndex;
+    const item = idx >= 0 ? emails[idx] : null;
+    if (!item) return;
+    const subject = item.subject || "(no subject)";
+    const text = `${item.id} — ${subject}`;
+    navigator.clipboard.writeText(text);
+  }, [emails, resolvedSelectedIndex]);
+
+  useHotkey("Meta+c", copySelectedEmailRef, listHotkeyOptions);
+  useHotkey("Meta+c", copySelectedEmailRef, viewerHotkeyOptions);
 
   useHotkey("c", onComposeNew, listHotkeyOptions);
   useHotkey("c", onComposeNew, viewerHotkeyOptions);
@@ -395,7 +483,7 @@ export function EmailSplitView({
   useHotkey("ArrowLeft", () => runCommand("focusEmailList"), viewerHotkeyOptions);
   useHotkey("Enter", enterFullscreen, viewerHotkeyOptions);
   useHotkey("Escape", handleEscape, viewerHotkeyOptions);
-  useHotkey("Escape", handleEscape, fullscreenHotkeyOptions);
+  useHotkey("Escape", handleExitFullscreen, fullscreenHotkeyOptions);
   useHotkey("f", toggleFullscreen, viewerHotkeyOptions);
   useHotkeySequence(["g", "i"], () => runCommand("goToInbox"), {
     enabled: activeSurface !== "none",
@@ -446,7 +534,7 @@ export function EmailSplitView({
         ref={listFocusRef}
         tabIndex={0}
         onPointerDownCapture={handleListPointerDown}
-        className={`md:w-[360px] md:flex-shrink-0 h-1/2 md:h-full min-h-0 outline-none ${isFullscreen ? "hidden" : ""}`}
+        className={`${isListOnly ? "w-full" : "md:w-[360px] md:flex-shrink-0"} h-1/2 md:h-full min-h-0 outline-none ${isFullscreen ? "hidden" : ""}`}
       >
         <div className="h-full min-h-0 w-full rounded-lg overflow-hidden flex flex-col bg-card border border-border/50">
           <EmailListToolbar
@@ -458,6 +546,7 @@ export function EmailSplitView({
           <EmailList
             emails={emails}
             selectedIndex={resolvedSelectedIndex}
+            selectedEmailIds={selectedEmailIdSet}
             listRef={listRef}
             onSelectEmail={handleSelectEmail}
             onHoverEmail={onHoverEmail}
@@ -474,9 +563,11 @@ export function EmailSplitView({
         aria-label="Email viewer"
         onPointerDownCapture={handleViewerPointerDown}
         className={
-          isFullscreen
-            ? "email-viewer fixed inset-0 z-50 bg-background"
-            : "email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 rounded-lg border border-border/50 flex flex-col"
+          isListOnly
+            ? "hidden"
+            : isFullscreen
+              ? "email-viewer fixed inset-0 z-50 bg-background"
+              : "email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 rounded-lg border border-border/50 flex flex-col"
         }
       >
         <div className="flex-1 min-h-0">

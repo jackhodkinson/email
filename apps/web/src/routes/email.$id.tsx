@@ -20,6 +20,32 @@ import {
 } from "../lib/query";
 import { useMutation } from "@tanstack/react-query";
 
+type SidebarCounts = {
+  inbox: number;
+  primary: number;
+  promotions: number;
+  social: number;
+  updates: number;
+  forums: number;
+  starred: number;
+};
+
+type ArchivedThreadSnapshot = {
+  messageId: string;
+  threadId: string;
+  labels: string[];
+};
+
+const INBOX_CATEGORY_TO_COUNT_KEY: Array<{
+  label: string;
+  key: keyof SidebarCounts;
+}> = [
+  { label: "CATEGORY_PERSONAL", key: "primary" },
+  { label: "CATEGORY_PROMOTIONS", key: "promotions" },
+  { label: "CATEGORY_SOCIAL", key: "social" },
+  { label: "CATEGORY_UPDATES", key: "updates" },
+];
+
 export const Route = createFileRoute("/email/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === "string" ? search.q : undefined,
@@ -183,40 +209,129 @@ function EmailDetailPage() {
         : displayThreads.filter((t) => !archivedThreadIds.has(t.threadId)),
     [displayThreads, archivedThreadIds],
   );
+  const selectedThreadStillVisible = useMemo(
+    () => visibleThreads.some((thread) => thread.id === selectedId),
+    [selectedId, visibleThreads],
+  );
+  const activeSelectedEmailId = selectedThreadStillVisible ? selectedId : undefined;
+  const activeEmailDetail = activeSelectedEmailId ? (emailDetail ?? null) : null;
+  const activeThreadEmails = activeSelectedEmailId ? (threadEmails ?? null) : null;
+  const lastArchivedRef = useRef<ArchivedThreadSnapshot[] | null>(null);
+  const applyOptimisticSidebarDelta = useCallback(
+    (entries: ArchivedThreadSnapshot[], direction: 1 | -1) => {
+      if (entries.length === 0) return;
 
-  const lastArchivedRef = useRef<{ messageId: string; threadId: string } | null>(null);
+      const countsDelta: Partial<Record<keyof SidebarCounts, number>> = {};
+      const userLabelDelta = new Map<string, number>();
+
+      for (const entry of entries) {
+        const labelSet = new Set(entry.labels);
+        const isUnreadInbox = labelSet.has("INBOX") && labelSet.has("UNREAD");
+        if (!isUnreadInbox) continue;
+
+        countsDelta.inbox = (countsDelta.inbox ?? 0) + direction;
+        for (const item of INBOX_CATEGORY_TO_COUNT_KEY) {
+          if (labelSet.has(item.label)) {
+            countsDelta[item.key] = (countsDelta[item.key] ?? 0) + direction;
+          }
+        }
+
+        for (const labelId of labelSet) {
+          userLabelDelta.set(labelId, (userLabelDelta.get(labelId) ?? 0) + direction);
+        }
+      }
+
+      queryClient.setQueryData(["email", "sidebar-counts"], (prev: SidebarCounts | undefined) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          inbox: Math.max(0, prev.inbox + (countsDelta.inbox ?? 0)),
+          primary: Math.max(0, prev.primary + (countsDelta.primary ?? 0)),
+          promotions: Math.max(0, prev.promotions + (countsDelta.promotions ?? 0)),
+          social: Math.max(0, prev.social + (countsDelta.social ?? 0)),
+          updates: Math.max(0, prev.updates + (countsDelta.updates ?? 0)),
+        };
+      });
+
+      queryClient.setQueryData(
+        ["email", "labels"],
+        (
+          prev:
+            | { labels: Array<{ id: string; name: string; unread: number }> }
+            | undefined,
+        ) => {
+          if (!prev) return prev;
+          return {
+            labels: prev.labels.map((label) => {
+              if (!label.name.startsWith("Cmail/")) return label;
+              const delta = userLabelDelta.get(label.id) ?? 0;
+              if (delta === 0) return label;
+              return {
+                ...label,
+                unread: Math.max(0, label.unread + delta),
+              };
+            }),
+          };
+        },
+      );
+    },
+    [queryClient],
+  );
+
+  const reconcileSidebarCounts = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["email", "sidebar-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["email", "labels"] });
+    window.dispatchEvent(new Event("sidebar-counts-changed"));
+  }, [queryClient]);
 
   const archiveMutation = useMutation({
     mutationFn: async (vars: { threadId: string }) => {
-      const result = await removeFromInboxAction({ data: vars });
-      window.dispatchEvent(new Event("sidebar-counts-changed"));
-      return result;
+      return await removeFromInboxAction({ data: vars });
+    },
+    onSuccess: () => {
+      reconcileSidebarCounts();
     },
   });
 
   const unarchiveMutation = useMutation({
     mutationFn: async (vars: { threadId: string }) => {
-      const result = await addToInboxAction({ data: vars });
-      window.dispatchEvent(new Event("sidebar-counts-changed"));
-      return result;
+      return await addToInboxAction({ data: vars });
+    },
+    onSuccess: () => {
+      reconcileSidebarCounts();
     },
   });
 
-  const handleRemoveFromInbox = useCallback(
-    (messageId: string) => {
-      // Navigate to the next email in the list before removing
-      const currentIdx = visibleThreads.findIndex((t) => t.id === messageId);
-      const thread = visibleThreads[currentIdx];
-      const nextEmail =
-        visibleThreads[currentIdx + 1] ?? visibleThreads[currentIdx - 1];
+  const archiveMessageIds = useCallback(
+    (messageIds: string[]) => {
+      if (messageIds.length === 0) return;
 
-      const threadId = thread?.threadId;
-      if (!threadId) return;
+      const batch = messageIds
+        .map((messageId) => {
+          const thread = visibleThreads.find((t) => t.id === messageId);
+          if (!thread) return null;
+          return { messageId, threadId: thread.threadId, labels: thread.labels };
+        })
+        .filter(Boolean) as ArchivedThreadSnapshot[];
+      if (batch.length === 0) return;
 
-      lastArchivedRef.current = { messageId, threadId };
-      setArchivedThreadIds((prev) => new Set(prev).add(threadId));
-      archiveMutation.mutate({ threadId });
+      const archivedThreadIds = Array.from(new Set(batch.map((item) => item.threadId)));
+      lastArchivedRef.current = batch;
+      setArchivedThreadIds((prev) => {
+        const next = new Set(prev);
+        for (const threadId of archivedThreadIds) {
+          next.add(threadId);
+        }
+        return next;
+      });
+      applyOptimisticSidebarDelta(batch, -1);
 
+      for (const threadId of archivedThreadIds) {
+        archiveMutation.mutate({ threadId });
+      }
+
+      const messageIdSet = new Set(messageIds);
+      const nextEmail = visibleThreads.find((thread) => !messageIdSet.has(thread.id));
       if (nextEmail) {
         navigate({
           to: "/email/$id",
@@ -230,39 +345,50 @@ function EmailDetailPage() {
             replyTo,
           },
         });
-      } else {
-        navigate({
-          to: "/",
-          search: {
-            q: query,
-            threads: threadsOnly || undefined,
-            category,
-            label,
-            compose: undefined,
-            replyTo: undefined,
-          },
-        });
+        return;
       }
     },
     [archiveMutation, category, compose, label, navigate, query, replyTo, threadsOnly, visibleThreads],
   );
 
+  const handleRemoveFromInbox = useCallback(
+    (messageId: string) => {
+      archiveMessageIds([messageId]);
+    },
+    [archiveMessageIds],
+  );
+
+  const handleRemoveManyFromInbox = useCallback(
+    (messageIds: string[]) => {
+      archiveMessageIds(messageIds);
+    },
+    [archiveMessageIds],
+  );
+
   const handleUndoArchive = useCallback(() => {
-    const last = lastArchivedRef.current;
-    if (!last) return;
+    const lastBatch = lastArchivedRef.current;
+    if (!lastBatch || lastBatch.length === 0) return;
 
     lastArchivedRef.current = null;
+    const threadIds = Array.from(new Set(lastBatch.map((item) => item.threadId)));
     setArchivedThreadIds((prev) => {
       const next = new Set(prev);
-      next.delete(last.threadId);
+      for (const threadId of threadIds) {
+        next.delete(threadId);
+      }
       return next;
     });
-    unarchiveMutation.mutate({ threadId: last.threadId });
+    applyOptimisticSidebarDelta(lastBatch, 1);
+    for (const threadId of threadIds) {
+      unarchiveMutation.mutate({ threadId });
+    }
 
-    // Navigate back to the restored email
+    const restoreMessageId = lastBatch[0]?.messageId;
+    if (!restoreMessageId) return;
+
     navigate({
       to: "/email/$id",
-      params: { id: last.messageId },
+      params: { id: restoreMessageId },
       search: {
         q: query,
         threads: threadsOnly || undefined,
@@ -272,7 +398,7 @@ function EmailDetailPage() {
         replyTo,
       },
     });
-  }, [category, compose, label, navigate, query, replyTo, threadsOnly, unarchiveMutation]);
+  }, [applyOptimisticSidebarDelta, category, compose, label, navigate, query, replyTo, threadsOnly, unarchiveMutation]);
 
   const handleSelectEmail = useCallback(
     (id: string) => {
@@ -366,6 +492,20 @@ function EmailDetailPage() {
     [queryClient],
   );
 
+  const handleDeselectEmail = useCallback(() => {
+    navigate({
+      to: "/",
+      search: {
+        q: query,
+        threads: threadsOnly || undefined,
+        category,
+        label,
+        compose: undefined,
+        replyTo: undefined,
+      },
+    });
+  }, [category, label, navigate, query, threadsOnly]);
+
   const handleToggleThreadsOnly = useCallback(() => {
     const nextThreads = !threadsOnly || undefined;
     navigate({
@@ -448,10 +588,11 @@ function EmailDetailPage() {
       <main className="flex-1 min-h-0 overflow-hidden">
         <EmailSplitView
           emails={visibleThreads}
-          selectedEmailId={selectedId}
-          email={emailDetail ?? null}
-          threadEmails={threadEmails ?? null}
+          selectedEmailId={activeSelectedEmailId}
+          email={activeEmailDetail}
+          threadEmails={activeThreadEmails}
           onSelectEmail={handleSelectEmail}
+          onDeselectEmail={handleDeselectEmail}
           onOpenEmailFullscreen={handleOpenEmailFullscreen}
           onHoverEmail={handleHoverEmail}
           focusSearch={focusSearch}
@@ -470,9 +611,10 @@ function EmailDetailPage() {
           onComposeReply={handleComposeReply}
           onToggleRead={handleToggleRead}
           onRemoveFromInbox={handleRemoveFromInbox}
+          onRemoveManyFromInbox={handleRemoveManyFromInbox}
           onUndoArchive={handleUndoArchive}
           replyTo={
-            isInlineReply && replyEmail && threadId
+            isInlineReply && activeSelectedEmailId && replyEmail && threadId
               ? {
                   messageId: replyTo!,
                   threadId,

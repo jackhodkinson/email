@@ -60,6 +60,7 @@ code {
 
 :root {
   --radius: 0.625rem;
+  color-scheme: light;
 
   /* Semantic: unread email */
   --unread-bg: oklch(0.97 0.01 250);
@@ -107,9 +108,18 @@ code {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --scrollbar-track: oklch(from var(--background) l c h / 1);
+  --scrollbar-thumb: oklch(from var(--muted-foreground) l c h / 0.28);
+  --scrollbar-thumb-hover: oklch(from var(--muted-foreground) l c h / 0.42);
+  --sidebar-scrollbar-track: oklch(from var(--sidebar) l c h / 1);
+  --sidebar-scrollbar-thumb: oklch(from var(--sidebar-foreground) l c h / 0.2);
+  --sidebar-scrollbar-thumb-hover: oklch(
+    from var(--sidebar-foreground) l c h / 0.32
+  );
 }
 
 .dark {
+  color-scheme: dark;
   --unread-bg: oklch(0.22 0.02 260);
   --unread-dot: oklch(0.55 0.2 260);
 
@@ -153,11 +163,49 @@ code {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.65 0.2 260);
+  --scrollbar-track: oklch(from var(--background) l c h / 1);
+  --scrollbar-thumb: oklch(from var(--muted-foreground) l c h / 0.3);
+  --scrollbar-thumb-hover: oklch(from var(--muted-foreground) l c h / 0.45);
+  --sidebar-scrollbar-track: oklch(from var(--sidebar) l c h / 1);
+  --sidebar-scrollbar-thumb: oklch(from var(--sidebar-foreground) l c h / 0.24);
+  --sidebar-scrollbar-thumb-hover: oklch(
+    from var(--sidebar-foreground) l c h / 0.38
+  );
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    border: 2px solid var(--scrollbar-track);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+  [data-sidebar="content"] {
+    scrollbar-color: var(--sidebar-scrollbar-thumb) var(--sidebar-scrollbar-track);
+  }
+  [data-sidebar="content"]::-webkit-scrollbar-track {
+    background: var(--sidebar-scrollbar-track);
+  }
+  [data-sidebar="content"]::-webkit-scrollbar-thumb {
+    background-color: var(--sidebar-scrollbar-thumb);
+    border-color: var(--sidebar-scrollbar-track);
+  }
+  [data-sidebar="content"]::-webkit-scrollbar-thumb:hover {
+    background-color: var(--sidebar-scrollbar-thumb-hover);
   }
   html {
     @apply h-full overflow-hidden;

@@ -68,7 +68,9 @@ export function AppSidebar() {
   });
   const { data: counts } = useQuery(sidebarCountsQueryOptions());
   const { data: labelData } = useQuery(userLabelsQueryOptions());
-  const labels = labelData?.labels ?? [];
+  const allLabels = labelData?.labels ?? [];
+  const inboxLabels = allLabels.filter((l) => l.name.startsWith("Cmail/"));
+  const labels = allLabels.filter((l) => !l.name.startsWith("Cmail/"));
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<SidebarLabel | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -195,7 +197,7 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <SidebarMenuButton
                       asChild
-                      isActive={activeViewId === inboxView.id || isInboxCategoryView(activeCategory)}
+                      isActive={activeViewId === inboxView.id || isInboxCategoryView(activeCategory) || activeViewId?.startsWith("inbox-label:")}
                       tooltip={inboxView.title}
                       className="flex-1"
                     >
@@ -226,6 +228,34 @@ export function AppSidebar() {
                                     {counts[view.countKey]}
                                   </span>
                                 )}
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                      {inboxLabels.map((label) => (
+                        <SidebarMenuSubItem key={label.id}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={activeViewId === `inbox-label:${label.id}`}
+                          >
+                            <Link
+                              to="/"
+                              search={{
+                                q: undefined,
+                                threads: undefined,
+                                category: "inbox",
+                                label: label.id,
+                                compose: undefined,
+                                replyTo: undefined,
+                              }}
+                            >
+                              <Tag />
+                              <span className="flex-1">{label.name.replace("Cmail/", "")}</span>
+                              {label.unread > 0 && (
+                                <span className="text-xs tabular-nums text-sidebar-foreground/70">
+                                  {label.unread}
+                                </span>
+                              )}
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMatches, useNavigate } from "@tanstack/react-router";
-import { Check } from "lucide-react";
+import { Check, Tag } from "lucide-react";
 
 import {
   CommandDialog,
@@ -21,7 +21,7 @@ import {
   secondaryMailViews,
   type MailView,
 } from "@/lib/mail-views";
-import { sidebarCountsQueryOptions } from "@/lib/query";
+import { sidebarCountsQueryOptions, userLabelsQueryOptions } from "@/lib/query";
 
 interface ViewCommandPaletteProps {
   open: boolean;
@@ -48,6 +48,8 @@ export function ViewCommandPalette({
   });
 
   const { data: counts } = useQuery(sidebarCountsQueryOptions());
+  const { data: labelData } = useQuery(userLabelsQueryOptions());
+  const inboxLabels = (labelData?.labels ?? []).filter((l) => l.name.startsWith("Cmail/"));
 
   useEffect(() => {
     return focusManager.registerSurface("command-palette", () => inputRef.current);
@@ -149,6 +151,34 @@ export function ViewCommandPalette({
         <CommandGroup heading="Inbox">
           {renderItem(inboxView)}
           {inboxCategoryViews.map(renderItem)}
+          {inboxLabels.map((label) => {
+            const isActive = activeViewId === `inbox-label:${label.id}`;
+            return (
+              <CommandItem
+                key={label.id}
+                value={label.name}
+                onSelect={() => {
+                  onOpenChange(false);
+                  navigate({
+                    to: "/",
+                    search: {
+                      q: undefined,
+                      threads: undefined,
+                      category: "inbox",
+                      label: label.id,
+                      compose: undefined,
+                      replyTo: undefined,
+                    },
+                  });
+                }}
+              >
+                <Tag className="size-4" />
+                <span>{label.name.replace("Cmail/", "")}</span>
+                {label.unread > 0 ? <CommandShortcut>{label.unread}</CommandShortcut> : null}
+                {isActive ? <Check className="size-4 text-muted-foreground" /> : null}
+              </CommandItem>
+            );
+          })}
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="More">

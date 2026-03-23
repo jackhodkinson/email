@@ -429,16 +429,32 @@ function base64urlEncode(str: string): string {
     .replace(/=+$/, "");
 }
 
+function quoteBody(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
+}
+
+function formatQuotedReply(
+  body: string,
+  originalFrom: string,
+  originalDate: string,
+  originalBody: string,
+): string {
+  const quotedOriginal = quoteBody(originalBody);
+  return `${body}\n\nOn ${originalDate}, ${originalFrom} wrote:\n${quotedOriginal}`;
+}
+
 async function buildReplyMessage(
   gmail: gmail_v1.Gmail,
   opts: ReplyDraftOptions,
 ): Promise<{ raw: string; threadId?: string }> {
-  // Fetch original message headers for threading
+  // Fetch original message with full body for quoting
   const original = await gmail.users.messages.get({
     userId: "me",
     id: opts.messageId,
-    format: "metadata",
-    metadataHeaders: ["Message-ID", "References", "Subject", "To", "From"],
+    format: "full",
   });
 
   const headers = original.data.payload?.headers;
@@ -446,7 +462,15 @@ async function buildReplyMessage(
   const originalReferences = getHeader(headers, "References");
   const originalSubject = getHeader(headers, "Subject");
   const originalFrom = getHeader(headers, "From");
+  const originalDate = getHeader(headers, "Date");
   const threadId = original.data.threadId || undefined;
+
+  // Extract and quote the original message body
+  const { text: rawText, isHtml } = original.data.payload
+    ? extractBody(original.data.payload)
+    : { text: "", isHtml: false };
+  const looksLikeHtml = isHtml || /^\s*<!DOCTYPE|^\s*<html/i.test(rawText);
+  const originalBody = cleanBody(looksLikeHtml ? htmlToText(rawText) : rawText);
 
   // Build References header: original References + original Message-ID
   const references = originalReferences
@@ -458,13 +482,20 @@ async function buildReplyMessage(
     ? originalSubject
     : `Re: ${originalSubject}`;
 
+  const bodyWithQuote = formatQuotedReply(
+    opts.body,
+    originalFrom,
+    originalDate,
+    originalBody,
+  );
+
   const raw = buildRfc2822Message({
     to: [originalFrom],
     cc: opts.cc,
     bcc: opts.bcc,
     subject,
     threadSubject: subject,
-    body: opts.body,
+    body: bodyWithQuote,
     inReplyTo: originalMessageId,
     references,
   });

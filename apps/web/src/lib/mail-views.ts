@@ -235,6 +235,7 @@ export function getActiveMailViewId(options: {
   isContactsRoute: boolean;
 }) {
   if (options.isContactsRoute) return "contacts";
+  if (options.label && options.category) return `inbox-label:${options.label}`;
   if (options.label) return "label";
   if (options.category && commandPaletteViews.some((view) => view.id === options.category)) {
     return options.category;

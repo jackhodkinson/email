@@ -1,8 +1,10 @@
-import { useCallback } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  addToInboxAction,
   getThreadedInboxEmails,
+  removeFromInboxAction,
   searchThreadedInboxEmails,
 } from "../server/functions";
 import { inboxQueryOptions } from "../lib/query";
@@ -15,6 +17,32 @@ import {
   prefetchBatch,
   prefetchEmailDetail,
 } from "../lib/query";
+
+type SidebarCounts = {
+  inbox: number;
+  primary: number;
+  promotions: number;
+  social: number;
+  updates: number;
+  forums: number;
+  starred: number;
+};
+
+type ArchivedThreadSnapshot = {
+  messageId: string;
+  threadId: string;
+  labels: string[];
+};
+
+const INBOX_CATEGORY_TO_COUNT_KEY: Array<{
+  label: string;
+  key: keyof SidebarCounts;
+}> = [
+  { label: "CATEGORY_PERSONAL", key: "primary" },
+  { label: "CATEGORY_PROMOTIONS", key: "promotions" },
+  { label: "CATEGORY_SOCIAL", key: "social" },
+  { label: "CATEGORY_UPDATES", key: "updates" },
+];
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -100,8 +128,106 @@ function InboxPage() {
   const { threads, accountId, query, threadsOnly, category, label, compose, replyTo } =
     Route.useLoaderData();
   const navigate = useNavigate();
+  const router = useRouter();
   const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
+  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(() => new Set());
+  const visibleThreads = useMemo(
+    () =>
+      archivedThreadIds.size === 0
+        ? threads
+        : threads.filter((thread) => !archivedThreadIds.has(thread.threadId)),
+    [archivedThreadIds, threads],
+  );
+  const lastArchivedRef = useRef<ArchivedThreadSnapshot[] | null>(null);
+  const applyOptimisticSidebarDelta = useCallback(
+    (entries: ArchivedThreadSnapshot[], direction: 1 | -1) => {
+      if (entries.length === 0) return;
+
+      const countsDelta: Partial<Record<keyof SidebarCounts, number>> = {};
+      const userLabelDelta = new Map<string, number>();
+
+      for (const entry of entries) {
+        const labelSet = new Set(entry.labels);
+        const isUnreadInbox = labelSet.has("INBOX") && labelSet.has("UNREAD");
+        if (!isUnreadInbox) continue;
+
+        countsDelta.inbox = (countsDelta.inbox ?? 0) + direction;
+        for (const item of INBOX_CATEGORY_TO_COUNT_KEY) {
+          if (labelSet.has(item.label)) {
+            countsDelta[item.key] = (countsDelta[item.key] ?? 0) + direction;
+          }
+        }
+
+        for (const labelId of labelSet) {
+          userLabelDelta.set(labelId, (userLabelDelta.get(labelId) ?? 0) + direction);
+        }
+      }
+
+      queryClient.setQueryData(["email", "sidebar-counts"], (prev: SidebarCounts | undefined) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          inbox: Math.max(0, prev.inbox + (countsDelta.inbox ?? 0)),
+          primary: Math.max(0, prev.primary + (countsDelta.primary ?? 0)),
+          promotions: Math.max(0, prev.promotions + (countsDelta.promotions ?? 0)),
+          social: Math.max(0, prev.social + (countsDelta.social ?? 0)),
+          updates: Math.max(0, prev.updates + (countsDelta.updates ?? 0)),
+        };
+      });
+
+      queryClient.setQueryData(
+        ["email", "labels"],
+        (
+          prev:
+            | { labels: Array<{ id: string; name: string; unread: number }> }
+            | undefined,
+        ) => {
+          if (!prev) return prev;
+          return {
+            labels: prev.labels.map((label) => {
+              if (!label.name.startsWith("Cmail/")) return label;
+              const delta = userLabelDelta.get(label.id) ?? 0;
+              if (delta === 0) return label;
+              return {
+                ...label,
+                unread: Math.max(0, label.unread + delta),
+              };
+            }),
+          };
+        },
+      );
+    },
+    [queryClient],
+  );
+
+  const reconcileSidebarCounts = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["email", "sidebar-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["email", "labels"] });
+    window.dispatchEvent(new Event("sidebar-counts-changed"));
+  }, [queryClient]);
+
+  const archiveMutation = useMutation({
+    mutationFn: async (vars: { threadId: string }) => {
+      return await removeFromInboxAction({ data: vars });
+    },
+    onSuccess: async () => {
+      reconcileSidebarCounts();
+      await queryClient.invalidateQueries({ queryKey: ["email", "inbox"] });
+      await router.invalidate();
+    },
+  });
+
+  const unarchiveMutation = useMutation({
+    mutationFn: async (vars: { threadId: string }) => {
+      return await addToInboxAction({ data: vars });
+    },
+    onSuccess: async () => {
+      reconcileSidebarCounts();
+      await queryClient.invalidateQueries({ queryKey: ["email", "inbox"] });
+      await router.invalidate();
+    },
+  });
 
   // Prefetch email detail on hover so first click is instant
   const handleHoverEmail = useCallback(
@@ -151,6 +277,71 @@ function InboxPage() {
     },
     [category, compose, label, navigate, query, replyTo, threadsOnly],
   );
+
+  const archiveMessageIds = useCallback(
+    (messageIds: string[]) => {
+      if (messageIds.length === 0) return;
+
+      const batch = messageIds
+        .map((messageId) => {
+          const thread = visibleThreads.find((t) => t.id === messageId);
+          if (!thread) return null;
+          return { messageId, threadId: thread.threadId, labels: thread.labels };
+        })
+        .filter(Boolean) as ArchivedThreadSnapshot[];
+      if (batch.length === 0) return;
+
+      const threadIds = Array.from(new Set(batch.map((item) => item.threadId)));
+      lastArchivedRef.current = batch;
+      setArchivedThreadIds((prev) => {
+        const next = new Set(prev);
+        for (const threadId of threadIds) {
+          next.add(threadId);
+        }
+        return next;
+      });
+      applyOptimisticSidebarDelta(batch, -1);
+
+      for (const threadId of threadIds) {
+        archiveMutation.mutate({ threadId });
+      }
+    },
+    [archiveMutation, visibleThreads],
+  );
+
+  const handleRemoveFromInbox = useCallback(
+    (messageId: string) => {
+      archiveMessageIds([messageId]);
+    },
+    [archiveMessageIds],
+  );
+
+  const handleRemoveManyFromInbox = useCallback(
+    (messageIds: string[]) => {
+      archiveMessageIds(messageIds);
+    },
+    [archiveMessageIds],
+  );
+
+  const handleUndoArchive = useCallback(() => {
+    const lastBatch = lastArchivedRef.current;
+    if (!lastBatch || lastBatch.length === 0) return;
+
+    lastArchivedRef.current = null;
+    const threadIds = Array.from(new Set(lastBatch.map((item) => item.threadId)));
+    setArchivedThreadIds((prev) => {
+      const next = new Set(prev);
+      for (const threadId of threadIds) {
+        next.delete(threadId);
+      }
+      return next;
+    });
+    applyOptimisticSidebarDelta(lastBatch, 1);
+
+    for (const threadId of threadIds) {
+      unarchiveMutation.mutate({ threadId });
+    }
+  }, [applyOptimisticSidebarDelta, unarchiveMutation]);
 
   const handleToggleThreadsOnly = useCallback(() => {
     const nextThreads = !threadsOnly || undefined;
@@ -223,7 +414,7 @@ function InboxPage() {
     <div className="h-full flex flex-col overflow-hidden">
       <main className="flex flex-1 min-h-0">
         <EmailSplitView
-          emails={threads}
+          emails={visibleThreads}
           onSelectEmail={handleSelectEmail}
           onOpenEmailFullscreen={handleOpenEmailFullscreen}
           onHoverEmail={handleHoverEmail}
@@ -241,6 +432,9 @@ function InboxPage() {
           onToggleThreadsOnly={handleToggleThreadsOnly}
           onComposeNew={handleComposeNew}
           onComposeReply={handleComposeReply}
+          onRemoveFromInbox={handleRemoveFromInbox}
+          onRemoveManyFromInbox={handleRemoveManyFromInbox}
+          onUndoArchive={handleUndoArchive}
         />
       </main>
       {composeOpen && (
