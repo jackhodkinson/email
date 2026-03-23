@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailIdRouteImport } from './routes/email.$id'
+import { Route as ApiRealtimeRouteImport } from './routes/api.realtime'
 
 const ContactsRoute = ContactsRouteImport.update({
   id: '/contacts',
@@ -28,34 +29,43 @@ const EmailIdRoute = EmailIdRouteImport.update({
   path: '/email/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRealtimeRoute = ApiRealtimeRouteImport.update({
+  id: '/api/realtime',
+  path: '/api/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
+  '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
+  '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
+  '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/contacts' | '/email/$id'
+  fullPaths: '/' | '/contacts' | '/api/realtime' | '/email/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/contacts' | '/email/$id'
-  id: '__root__' | '/' | '/contacts' | '/email/$id'
+  to: '/' | '/contacts' | '/api/realtime' | '/email/$id'
+  id: '__root__' | '/' | '/contacts' | '/api/realtime' | '/email/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContactsRoute: typeof ContactsRoute
+  ApiRealtimeRoute: typeof ApiRealtimeRoute
   EmailIdRoute: typeof EmailIdRoute
 }
 
@@ -82,12 +92,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/realtime': {
+      id: '/api/realtime'
+      path: '/api/realtime'
+      fullPath: '/api/realtime'
+      preLoaderRoute: typeof ApiRealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContactsRoute: ContactsRoute,
+  ApiRealtimeRoute: ApiRealtimeRoute,
   EmailIdRoute: EmailIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react'
-import { HeadContent, Scripts, ScriptOnce, createRootRoute, Link, useMatches } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
+import { HeadContent, Scripts, ScriptOnce, createRootRoute, Link, useMatches, useRouter } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HotkeysProvider } from '@tanstack/react-hotkeys'
 import { hotkeysDevtoolsPlugin } from '@tanstack/react-hotkeys-devtools'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Command } from 'lucide-react'
 
 import { AppSidebar } from '../components/app-sidebar'
@@ -120,6 +120,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HotkeysProvider>
           <FocusManagerProvider>
           <QueryClientProvider client={queryClient}>
+          <RealtimeInvalidationBridge />
           <ThemeProvider>
           <SearchBoxContext.Provider value={searchBoxRef}>
           <SidebarProvider className="h-full min-h-0">
@@ -159,4 +160,35 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   )
+}
+
+function RealtimeInvalidationBridge() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  useEffect(() => {
+    let debounceId: ReturnType<typeof setTimeout> | undefined;
+    const source = new EventSource("/api/realtime");
+
+    const invalidate = () => {
+      if (debounceId) return;
+      debounceId = setTimeout(() => {
+        debounceId = undefined;
+        queryClient.invalidateQueries({ queryKey: ["email"] });
+        void router.invalidate();
+      }, 150);
+    };
+
+    source.addEventListener("invalidate", invalidate);
+
+    return () => {
+      source.removeEventListener("invalidate", invalidate);
+      source.close();
+      if (debounceId) {
+        clearTimeout(debounceId);
+      }
+    };
+  }, [queryClient, router]);
+
+  return null;
 }

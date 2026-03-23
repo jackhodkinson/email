@@ -88,3 +88,10 @@ export {
 } from "./gmail.ts";
 
 export { parseGmailQuery, type ParsedQuery } from "./query.ts";
+
+export {
+  emitStateChange,
+  subscribeStateChanges,
+  type StateChangeEvent,
+  type StateChangeKind,
+} from "./realtime.ts";

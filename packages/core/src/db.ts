@@ -3,6 +3,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import type { EmailSummary } from "./gmail.ts";
+import { emitStateChange } from "./realtime.ts";
 
 // ─── Paths ───────────────────────────────────────────────────────────
 
@@ -208,11 +209,13 @@ export function setSyncState(db: Database, state: Partial<SyncState>): void {
   if (state.syncSince !== undefined) { sets.push("sync_since = ?"); vals.push(state.syncSince); }
   if (sets.length === 0) return;
   db.run(`UPDATE sync_state SET ${sets.join(", ")} WHERE id = 1`, vals);
+  emitStateChange("all");
 }
 
 // ─── Labels ──────────────────────────────────────────────────────────
 
 export function upsertLabels(db: Database, labels: { id: string; name: string; type: string }[]): void {
+  if (labels.length === 0) return;
   const stmt = db.prepare("INSERT OR REPLACE INTO labels (label_id, name, type) VALUES (?, ?, ?)");
   const tx = db.transaction(() => {
     for (const l of labels) {
@@ -220,15 +223,18 @@ export function upsertLabels(db: Database, labels: { id: string; name: string; t
     }
   });
   tx();
+  emitStateChange("labels");
 }
 
 export function updateLabel(db: Database, labelId: string, name: string): void {
   db.run("UPDATE labels SET name = ? WHERE label_id = ?", [name, labelId]);
+  emitStateChange("labels");
 }
 
 export function deleteLabel(db: Database, labelId: string): void {
   db.run("DELETE FROM message_labels WHERE label_id = ?", [labelId]);
   db.run("DELETE FROM labels WHERE label_id = ?", [labelId]);
+  emitStateChange("labels");
 }
 
 // ─── Labels (query) ──────────────────────────────────────────────────
@@ -282,6 +288,7 @@ export interface MessageRow {
 }
 
 export function insertMessageBatch(db: Database, messages: MessageRow[]): void {
+  if (messages.length === 0) return;
   const insertMsg = db.prepare(`
     INSERT OR REPLACE INTO messages
     (message_id, thread_id, history_id, snippet, subject,
@@ -317,14 +324,17 @@ export function insertMessageBatch(db: Database, messages: MessageRow[]): void {
   });
 
   tx(messages);
+  emitStateChange("mail");
 }
 
 export function deleteMessage(db: Database, messageId: string): void {
   db.run("DELETE FROM search_index WHERE message_id = ?", [messageId]);
   db.run("DELETE FROM messages WHERE message_id = ?", [messageId]);
+  emitStateChange("mail");
 }
 
 export function addLabels(db: Database, messageId: string, labelIds: string[]): void {
+  if (labelIds.length === 0) return;
   const exists = db
     .query("SELECT 1 FROM messages WHERE message_id = ?")
     .get(messageId);
@@ -334,9 +344,11 @@ export function addLabels(db: Database, messageId: string, labelIds: string[]): 
   for (const labelId of labelIds) {
     stmt.run(messageId, labelId);
   }
+  emitStateChange("mail");
 }
 
 export function removeLabels(db: Database, messageId: string, labelIds: string[]): void {
+  if (labelIds.length === 0) return;
   const exists = db
     .query("SELECT 1 FROM messages WHERE message_id = ?")
     .get(messageId);
@@ -346,18 +358,22 @@ export function removeLabels(db: Database, messageId: string, labelIds: string[]
   for (const labelId of labelIds) {
     stmt.run(messageId, labelId);
   }
+  emitStateChange("mail");
 }
 
 export function removeThreadLabels(db: Database, threadId: string, labelIds: string[]): void {
+  if (labelIds.length === 0) return;
   const stmt = db.prepare(
     "DELETE FROM message_labels WHERE message_id IN (SELECT message_id FROM messages WHERE thread_id = ?) AND label_id = ?"
   );
   for (const labelId of labelIds) {
     stmt.run(threadId, labelId);
   }
+  emitStateChange("mail");
 }
 
 export function addThreadLabels(db: Database, threadId: string, labelIds: string[]): void {
+  if (labelIds.length === 0) return;
   const msgIds = db
     .query("SELECT message_id FROM messages WHERE thread_id = ?")
     .all(threadId) as { message_id: string }[];
@@ -367,6 +383,7 @@ export function addThreadLabels(db: Database, threadId: string, labelIds: string
       stmt.run(message_id, labelId);
     }
   }
+  emitStateChange("mail");
 }
 
 export function getMessageById(db: Database, messageId: string): StoredMessage | null {
@@ -695,12 +712,14 @@ export function cacheBody(db: Database, messageId: string, bodyText: string, bod
            COALESCE(m."from", ''), COALESCE(m."to", ''), ?
     FROM messages m WHERE m.message_id = ?
   `, [bodyText, messageId]);
+  emitStateChange("mail");
 }
 
 export function cacheBodyBatch(
   db: Database,
   bodies: { messageId: string; bodyText: string; bodyRaw: string }[]
 ): void {
+  if (bodies.length === 0) return;
   const stmt = db.prepare(
     "INSERT OR REPLACE INTO message_bodies (message_id, body_text, body_raw, fetched_at) VALUES (?, ?, ?, ?)"
   );
@@ -720,6 +739,7 @@ export function cacheBodyBatch(
     }
   });
   tx(bodies);
+  emitStateChange("mail");
 }
 
 // ─── Contacts ─────────────────────────────────────────────────────────
@@ -841,4 +861,5 @@ export function resetDb(db: Database): void {
   db.run("DELETE FROM labels");
   db.run("DELETE FROM id_map");
   db.run("UPDATE sync_state SET history_id = NULL, last_sync_at = NULL, initial_sync_done = 0, sync_since = NULL WHERE id = 1");
+  emitStateChange("all");
 }
