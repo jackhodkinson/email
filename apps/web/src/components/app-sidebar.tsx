@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useMatches, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useMatches, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, PencilLine, Plus, Tag } from "lucide-react";
 
@@ -26,6 +26,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { LabelDialog } from "@/components/label-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -53,6 +54,14 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const matches = useMatches();
   const queryClient = useQueryClient();
+  const { setOpenMobile } = useSidebar();
+
+  // On mobile the sidebar is an overlay sheet; dismiss it once the user
+  // navigates so they land on the destination instead of the open sheet.
+  const locationHref = useLocation({ select: (location) => location.href });
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [locationHref, setOpenMobile]);
   const search = matches[matches.length - 1]?.search as
     | { category?: string; label?: string }
     | undefined;

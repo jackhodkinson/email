@@ -11,6 +11,7 @@ import { EmailListToolbar } from "./email-list-toolbar";
 import { EmailView } from "./email-view";
 import { ThreadView } from "./thread-view";
 import { ReplyPanel } from "./reply-panel";
+import { cn } from "@/lib/utils";
 import { useFocusManager } from "@/lib/focus-manager";
 import { useCommands } from "@/lib/commands/use-commands";
 import { userLabelsQueryOptions } from "@/lib/query";
@@ -528,13 +529,27 @@ export function EmailSplitView({
 
   const isReplying = !!replyTo;
 
+  // Below lg the layout is single-pane: the inbox shows the list, opening a
+  // message swaps to the viewer (with a back button). At lg+ — where there's
+  // room for the sidebar, a 360px list, and a readable viewer — both panes sit
+  // side by side as before.
+  const listVisibility = isFullscreen
+    ? "hidden"
+    : selectedEmailId
+      ? "hidden lg:block"
+      : "block";
+
   return (
-    <div className="flex h-full w-full flex-col md:flex-row p-2 gap-2">
+    <div className="flex h-full w-full flex-col lg:flex-row p-2 gap-2">
       <section
         ref={listFocusRef}
         tabIndex={0}
         onPointerDownCapture={handleListPointerDown}
-        className={`${isListOnly ? "w-full" : "md:w-[360px] md:flex-shrink-0"} h-1/2 md:h-full min-h-0 outline-none ${isFullscreen ? "hidden" : ""}`}
+        className={cn(
+          "h-full min-h-0 outline-none",
+          isListOnly ? "w-full" : "lg:w-[360px] lg:flex-shrink-0",
+          listVisibility,
+        )}
       >
         <div className="h-full min-h-0 w-full rounded-lg overflow-hidden flex flex-col bg-card border border-border/50">
           <EmailListToolbar
@@ -567,7 +582,11 @@ export function EmailSplitView({
             ? "hidden"
             : isFullscreen
               ? "email-viewer fixed inset-0 z-50 bg-background"
-              : "email-viewer flex-1 min-w-0 h-1/2 md:h-full min-h-0 rounded-lg border border-border/50 flex flex-col"
+              : cn(
+                  "email-viewer flex-1 min-w-0 h-full min-h-0 rounded-lg border border-border/50 flex-col",
+                  // Single-pane below lg: only show the viewer once a message is open
+                  selectedEmailId ? "flex" : "hidden lg:flex",
+                )
         }
       >
         <div className="flex-1 min-h-0">
@@ -576,6 +595,7 @@ export function EmailSplitView({
               emails={threadEmails}
               subject={email?.subject ?? null}
               onReply={onComposeReply}
+              onBack={onDeselectEmail}
               selectedEmailId={selectedEmailId ?? email?.id ?? null}
               shouldAutoFocus={!isReplying && pendingViewerFocus && activeSurface === "viewer"}
               onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
@@ -586,6 +606,7 @@ export function EmailSplitView({
             <EmailView
               email={email}
               onReply={onComposeReply}
+              onBack={onDeselectEmail}
               onToggleRead={onToggleRead}
               onRemoveFromInbox={onRemoveFromInbox}
               shouldAutoFocus={!isReplying && pendingViewerFocus && activeSurface === "viewer"}

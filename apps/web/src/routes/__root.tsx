@@ -27,7 +27,7 @@ export const Route = createRootRoute({
       },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
+        content: 'width=device-width, initial-scale=1, viewport-fit=cover',
       },
       {
         title: 'TanStack Start Starter',
@@ -96,10 +96,11 @@ function RootHeader({
         size="sm"
         className="ml-auto shrink-0"
         onClick={onOpenPalette}
+        aria-label="Open views"
       >
         <Command className="size-4" />
-        <span>Views</span>
-        <span className="text-muted-foreground text-xs">⌘K</span>
+        <span className="hidden sm:inline">Views</span>
+        <span className="hidden md:inline text-muted-foreground text-xs">⌘K</span>
       </Button>
     </header>
   );
