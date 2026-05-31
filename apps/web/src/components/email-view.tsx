@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { EmailContent } from "./email-content";
 import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
 import { Button } from "./ui/button";
-import { Archive, ChevronDown, Mail, MailOpen, Maximize2, Minimize2, Paperclip, Reply } from "lucide-react";
+import { Archive, ArrowLeft, ChevronDown, Mail, MailOpen, Maximize2, Minimize2, Paperclip, Reply } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/date";
 
@@ -20,6 +20,7 @@ interface EmailViewProps {
     labels: string[];
   };
   onReply?: (messageId: string) => void;
+  onBack?: () => void;
   onToggleRead?: (messageId: string, isRead: boolean) => void;
   onRemoveFromInbox?: (messageId: string) => void;
   shouldAutoFocus?: boolean;
@@ -31,6 +32,7 @@ interface EmailViewProps {
 export function EmailView({
   email,
   onReply,
+  onBack,
   onToggleRead,
   onRemoveFromInbox,
   shouldAutoFocus = false,
@@ -65,6 +67,19 @@ export function EmailView({
     >
       {/* Subject + actions */}
       <div className="email-detail-header">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="lg:hidden -ml-1 shrink-0"
+            onClick={onBack}
+            aria-label="Back to inbox"
+            title="Back to inbox"
+          >
+            <ArrowLeft />
+          </Button>
+        )}
         <h1 className="email-detail-subject">
           {email.subject || "(no subject)"}
         </h1>
@@ -100,6 +115,7 @@ export function EmailView({
             type="button"
             variant="ghost"
             size="icon-sm"
+            className="hidden lg:inline-flex"
             onClick={onToggleFullscreen}
             title={isFullscreen ? "Exit full screen" : "Full screen"}
           >

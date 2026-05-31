@@ -86,7 +86,7 @@ function ContactsPage() {
                   </span>
                 </th>
                 <th
-                  className="contact-table__th cursor-pointer select-none"
+                  className="contact-table__th cursor-pointer select-none hidden lg:table-cell"
                   onClick={() => handleSort("emails")}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -95,7 +95,7 @@ function ContactsPage() {
                   </span>
                 </th>
                 <th
-                  className="contact-table__th cursor-pointer select-none"
+                  className="contact-table__th cursor-pointer select-none hidden sm:table-cell"
                   onClick={() => handleSort("threads")}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -113,7 +113,7 @@ function ContactsPage() {
                   </span>
                 </th>
                 <th
-                  className="contact-table__th cursor-pointer select-none"
+                  className="contact-table__th cursor-pointer select-none hidden md:table-cell"
                   onClick={() => handleSort("first_contacted")}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -147,7 +147,7 @@ function ContactsPage() {
                       <div className="avatar">
                         {contact.name.charAt(0).toUpperCase()}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 max-w-[55vw] sm:max-w-none">
                         <div className="text-sm font-medium text-truncate">
                           {contact.name}
                         </div>
@@ -159,16 +159,16 @@ function ContactsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="contact-table__td tabular-nums">
+                  <td className="contact-table__td tabular-nums hidden lg:table-cell">
                     {contact.messageCount}
                   </td>
-                  <td className="contact-table__td tabular-nums">
+                  <td className="contact-table__td tabular-nums hidden sm:table-cell">
                     {contact.threadCount}
                   </td>
                   <td className="contact-table__td">
                     {formatDate(contact.lastContactDate)}
                   </td>
-                  <td className="contact-table__td">
+                  <td className="contact-table__td hidden md:table-cell">
                     {formatDate(contact.firstContactDate)}
                   </td>
                 </tr>

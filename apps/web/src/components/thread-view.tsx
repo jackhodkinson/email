@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { ChevronsDownUp, ChevronsUpDown, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, ChevronsDownUp, ChevronsUpDown, Maximize2, Minimize2 } from "lucide-react";
 import { ThreadMessage } from "./thread-message";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -22,6 +22,7 @@ interface ThreadViewProps {
   emails: ThreadEmail[];
   subject: string | null;
   onReply?: (messageId: string) => void;
+  onBack?: () => void;
   selectedEmailId?: string | null;
   shouldAutoFocus?: boolean;
   onAutoFocusComplete?: () => void;
@@ -33,6 +34,7 @@ export function ThreadView({
   emails,
   subject,
   onReply,
+  onBack,
   selectedEmailId,
   shouldAutoFocus = false,
   onAutoFocusComplete,
@@ -139,6 +141,18 @@ export function ThreadView({
     <div className="flex flex-col h-full min-h-0">
       {/* Thread subject and controls */}
       <div className="email-detail-header">
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="lg:hidden -ml-1 shrink-0"
+            onClick={onBack}
+            aria-label="Back to inbox"
+            title="Back to inbox"
+          >
+            <ArrowLeft />
+          </Button>
+        )}
         <h1 className="email-detail-subject">
           {subject || "(no subject)"}
         </h1>
@@ -156,6 +170,7 @@ export function ThreadView({
           <Button
             variant="ghost"
             size="icon-sm"
+            className="hidden lg:inline-flex"
             onClick={onToggleFullscreen}
             title={isFullscreen ? "Exit full screen" : "Full screen"}
           >
