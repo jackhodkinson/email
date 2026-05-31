@@ -85,7 +85,10 @@ export function isAuthenticated(): boolean {
   return tokens !== null && !!tokens.refresh_token;
 }
 
-const SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
+];
 
 export function getAuthUrl(): string {
   const credentials = loadCredentials();

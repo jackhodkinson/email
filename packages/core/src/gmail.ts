@@ -1,6 +1,32 @@
 import { google, type gmail_v1 } from "googleapis";
 import { createOAuth2Client, isAuthenticated } from "./auth.ts";
 
+// ─── Filter types ───────────────────────────────────────────────────
+
+export interface FilterCriteria {
+  from?: string;
+  to?: string;
+  subject?: string;
+  query?: string;
+  negatedQuery?: string;
+  hasAttachment?: boolean;
+  excludeChats?: boolean;
+  size?: number;
+  sizeComparison?: "larger" | "smaller";
+}
+
+export interface FilterAction {
+  addLabelIds?: string[];
+  removeLabelIds?: string[];
+  forward?: string;
+}
+
+export interface GmailFilter {
+  id: string;
+  criteria: FilterCriteria;
+  action: FilterAction;
+}
+
 export interface EmailSummary {
   id: string;
   threadId: string;
@@ -906,4 +932,93 @@ export async function* getHistory(
   } while (pageToken);
 
   yield { type: "syncComplete", historyId: latestHistoryId };
+}
+
+// ─── Filter management ─────────────────────────────────────────────
+
+export async function listFilters(): Promise<GmailFilter[]> {
+  const gmail = getGmailClient();
+  const res = await gmail.users.settings.filters.list({ userId: "me" });
+  const filters = res.data.filter || [];
+  return filters.map((f) => ({
+    id: f.id!,
+    criteria: {
+      from: f.criteria?.from ?? undefined,
+      to: f.criteria?.to ?? undefined,
+      subject: f.criteria?.subject ?? undefined,
+      query: f.criteria?.query ?? undefined,
+      negatedQuery: f.criteria?.negatedQuery ?? undefined,
+      hasAttachment: f.criteria?.hasAttachment ?? undefined,
+      excludeChats: f.criteria?.excludeChats ?? undefined,
+      size: f.criteria?.size ?? undefined,
+      sizeComparison: f.criteria?.sizeComparison as FilterCriteria["sizeComparison"],
+    },
+    action: {
+      addLabelIds: f.action?.addLabelIds ?? undefined,
+      removeLabelIds: f.action?.removeLabelIds ?? undefined,
+      forward: f.action?.forward ?? undefined,
+    },
+  }));
+}
+
+export async function getFilter(filterId: string): Promise<GmailFilter> {
+  const gmail = getGmailClient();
+  const res = await gmail.users.settings.filters.get({
+    userId: "me",
+    id: filterId,
+  });
+  const f = res.data;
+  return {
+    id: f.id!,
+    criteria: {
+      from: f.criteria?.from ?? undefined,
+      to: f.criteria?.to ?? undefined,
+      subject: f.criteria?.subject ?? undefined,
+      query: f.criteria?.query ?? undefined,
+      negatedQuery: f.criteria?.negatedQuery ?? undefined,
+      hasAttachment: f.criteria?.hasAttachment ?? undefined,
+      excludeChats: f.criteria?.excludeChats ?? undefined,
+      size: f.criteria?.size ?? undefined,
+      sizeComparison: f.criteria?.sizeComparison as FilterCriteria["sizeComparison"],
+    },
+    action: {
+      addLabelIds: f.action?.addLabelIds ?? undefined,
+      removeLabelIds: f.action?.removeLabelIds ?? undefined,
+      forward: f.action?.forward ?? undefined,
+    },
+  };
+}
+
+export async function createFilter(
+  criteria: FilterCriteria,
+  action: FilterAction
+): Promise<GmailFilter> {
+  const gmail = getGmailClient();
+  const res = await gmail.users.settings.filters.create({
+    userId: "me",
+    requestBody: { criteria, action },
+  });
+  const f = res.data;
+  return {
+    id: f.id!,
+    criteria: {
+      from: f.criteria?.from ?? undefined,
+      to: f.criteria?.to ?? undefined,
+      subject: f.criteria?.subject ?? undefined,
+      query: f.criteria?.query ?? undefined,
+    },
+    action: {
+      addLabelIds: f.action?.addLabelIds ?? undefined,
+      removeLabelIds: f.action?.removeLabelIds ?? undefined,
+      forward: f.action?.forward ?? undefined,
+    },
+  };
+}
+
+export async function deleteFilter(filterId: string): Promise<void> {
+  const gmail = getGmailClient();
+  await gmail.users.settings.filters.delete({
+    userId: "me",
+    id: filterId,
+  });
 }

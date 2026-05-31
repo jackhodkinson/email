@@ -24,6 +24,29 @@ export function normalizeHtmlParagraphs(html: string): string {
 }
 
 /**
+ * Sanitize HTML for rendering inside a sandboxed iframe.
+ * Much more permissive than sanitizeHtml — keeps <style> tags, table attributes,
+ * and all visual markup so the email renders as the sender intended.
+ * Security is enforced by the iframe sandbox (no allow-scripts).
+ */
+export function sanitizeForIframe(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ["style"],
+    ADD_ATTR: [
+      "bgcolor",
+      "background",
+      "align",
+      "valign",
+      "cellpadding",
+      "cellspacing",
+      "border",
+    ],
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "form"],
+    ALLOW_DATA_ATTR: false,
+  });
+}
+
+/**
  * Sanitize HTML content to prevent XSS attacks
  * Allows common email formatting tags while stripping potentially dangerous content
  */

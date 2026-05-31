@@ -525,6 +525,15 @@ code {
     outline-offset: 2px;
   }
 
+  /* ── Email iframe ───────────────────────────────────────── */
+  .email-iframe {
+    width: 100%;
+    border: none;
+    display: block;
+    background: transparent;
+    color-scheme: light dark;
+  }
+
   /* ── Thread message ────────────────────────────────────── */
   .email-viewer {
     outline: none;

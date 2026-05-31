@@ -232,34 +232,6 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       ))}
-                      {inboxLabels.map((label) => (
-                        <SidebarMenuSubItem key={label.id}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={activeViewId === `inbox-label:${label.id}`}
-                          >
-                            <Link
-                              to="/"
-                              search={{
-                                q: undefined,
-                                threads: undefined,
-                                category: "inbox",
-                                label: label.id,
-                                compose: undefined,
-                                replyTo: undefined,
-                              }}
-                            >
-                              <Tag />
-                              <span className="flex-1">{label.name.replace("Cmail/", "")}</span>
-                              {label.unread > 0 && (
-                                <span className="text-xs tabular-nums text-sidebar-foreground/70">
-                                  {label.unread}
-                                </span>
-                              )}
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>
@@ -294,6 +266,42 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {inboxLabels.length > 0 && (
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel>Tags</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {inboxLabels.map((label) => (
+                  <SidebarMenuItem key={label.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={activeViewId === `inbox-label:${label.id}`}
+                      tooltip={label.name.replace("Cmail/", "")}
+                    >
+                      <Link
+                        to="/"
+                        search={{
+                          q: undefined,
+                          threads: undefined,
+                          category: "inbox",
+                          label: label.id,
+                          compose: undefined,
+                          replyTo: undefined,
+                        }}
+                      >
+                        <Tag />
+                        <span className="flex-1">{label.name.replace("Cmail/", "")}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {label.unread > 0 ? (
+                      <SidebarMenuBadge>{label.unread}</SidebarMenuBadge>
+                    ) : null}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>Labels</SidebarGroupLabel>
           <SidebarGroupAction

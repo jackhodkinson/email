@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { getDb, getSyncState, queryThreads, searchMessages, countMessages, storedToSummary, saveIdMap, saveLastList, resolveShortId, getMessageById, getCachedBody, cacheBody, getLabels, getLabelNameMap, resolveLabelName, addLabels, removeLabels, type ThreadQueryOpts, type CountOpts } from "./lib/db.ts";
+import { getDb, getSyncState, queryThreads, searchMessages, countMessages, storedToSummary, saveIdMap, saveLastList, resolveShortId, getMessageById, getCachedBody, cacheBody, getLabels, getLabelNameMap, resolveLabelName, addLabels, removeLabels, removeThreadLabels, type ThreadQueryOpts, type CountOpts } from "./lib/db.ts";
 import { computeShortIds, formatEmailList, formatEmail, formatThread, formatSearchResults, formatAttachmentList, formatSize, setPlainMode, type ReadMode, type ThreadEntry, type SearchEntry } from "./lib/format.ts";
 
 const GLOBAL_FLAGS = new Set(["-p", "--plain"]);
@@ -620,6 +620,65 @@ async function tag() {
   console.log(`${[...added, ...removed].join(" ")}`);
 }
 
+async function archive() {
+  const flagArgs = args.slice(1);
+  const positional = flagArgs.filter((a) => !a.startsWith("-"));
+  const id = positional[0];
+
+  if (!id) {
+    console.error("Usage: cmail archive <id> [--thread]");
+    process.exit(1);
+  }
+
+  const isThread = flagArgs.includes("--thread");
+
+  // Resolve email ID
+  let messageId: string | null = null;
+  let threadId: string | null = null;
+  const n = parseInt(id, 10);
+  const isPureNumber = !isNaN(n) && String(n) === id;
+
+  const db = getDb();
+
+  if (isPureNumber) {
+    const resolved = resolveShortId(db, `#${id}`);
+    if (resolved) {
+      messageId = resolved.messageId;
+      threadId = resolved.threadId;
+    }
+  }
+  if (!messageId) {
+    const resolved = resolveShortId(db, id);
+    if (resolved) {
+      messageId = resolved.messageId;
+      threadId = resolved.threadId;
+    }
+  }
+  if (!messageId) {
+    console.error(`Unknown email ID: ${id}\nRun 'cmail list' first, then use an ID from the output.`);
+    process.exit(1);
+  }
+
+  if (isThread) {
+    // Resolve threadId if not already known
+    if (!threadId) {
+      const { getEmail } = await import("./lib/gmail.ts");
+      const result = await getEmail(messageId);
+      threadId = result.summary.threadId;
+    }
+
+    const { removeThreadFromInbox } = await import("./lib/gmail.ts");
+    await removeThreadFromInbox(threadId);
+    removeThreadLabels(db, threadId, ["INBOX"]);
+    console.log("Archived thread");
+  } else {
+    const { removeFromInbox } = await import("./lib/gmail.ts");
+    await removeFromInbox(messageId);
+    removeLabels(db, messageId, ["INBOX"]);
+    console.log("Archived");
+  }
+}
+
 async function tags() {
   const subcommand = args[1];
 
@@ -673,6 +732,173 @@ async function tags() {
     for (const l of user) {
       console.log(`  ${l.name}`);
     }
+  }
+}
+
+async function filters() {
+  const subcommand = args[1];
+
+  if (subcommand === "create") {
+    const flagArgs = args.slice(2);
+    let from: string | undefined;
+    let to: string | undefined;
+    let subject: string | undefined;
+    let query: string | undefined;
+    let hasAttachment = false;
+    const addLabels: string[] = [];
+    const removeLabels: string[] = [];
+    let skipInbox = false;
+    let markRead = false;
+    let star = false;
+    let forward: string | undefined;
+
+    for (let i = 0; i < flagArgs.length; i++) {
+      if (flagArgs[i] === "--from" && flagArgs[i + 1]) {
+        from = flagArgs[i + 1]!;
+        i++;
+      } else if (flagArgs[i] === "--to" && flagArgs[i + 1]) {
+        to = flagArgs[i + 1]!;
+        i++;
+      } else if ((flagArgs[i] === "-s" || flagArgs[i] === "--subject") && flagArgs[i + 1]) {
+        subject = flagArgs[i + 1]!;
+        i++;
+      } else if ((flagArgs[i] === "-q" || flagArgs[i] === "--query") && flagArgs[i + 1]) {
+        query = flagArgs[i + 1]!;
+        i++;
+      } else if (flagArgs[i] === "--has-attachment") {
+        hasAttachment = true;
+      } else if (flagArgs[i] === "--add-label" && flagArgs[i + 1]) {
+        addLabels.push(flagArgs[i + 1]!);
+        i++;
+      } else if (flagArgs[i] === "--remove-label" && flagArgs[i + 1]) {
+        removeLabels.push(flagArgs[i + 1]!);
+        i++;
+      } else if (flagArgs[i] === "--skip-inbox" || flagArgs[i] === "--archive") {
+        skipInbox = true;
+      } else if (flagArgs[i] === "--mark-read") {
+        markRead = true;
+      } else if (flagArgs[i] === "--star") {
+        star = true;
+      } else if (flagArgs[i] === "--forward" && flagArgs[i + 1]) {
+        forward = flagArgs[i + 1]!;
+        i++;
+      }
+    }
+
+    if (!from && !to && !subject && !query && !hasAttachment) {
+      console.error("At least one criteria required: --from, --to, --subject, --query, --has-attachment");
+      process.exit(1);
+    }
+
+    // Resolve label names to IDs
+    const db = getDb();
+    const addLabelIds: string[] = [];
+    const removeLabelIds: string[] = [];
+
+    for (const name of addLabels) {
+      const id = resolveLabelName(db, name);
+      if (!id) {
+        console.error(`Unknown label: ${name}  (run 'cmail tags list' to see available labels)`);
+        process.exit(1);
+      }
+      addLabelIds.push(id);
+    }
+    for (const name of removeLabels) {
+      const id = resolveLabelName(db, name);
+      if (!id) {
+        console.error(`Unknown label: ${name}  (run 'cmail tags list' to see available labels)`);
+        process.exit(1);
+      }
+      removeLabelIds.push(id);
+    }
+
+    if (skipInbox) removeLabelIds.push("INBOX");
+    if (markRead) removeLabelIds.push("UNREAD");
+    if (star) addLabelIds.push("STARRED");
+
+    if (addLabelIds.length === 0 && removeLabelIds.length === 0 && !forward) {
+      console.error("At least one action required: --add-label, --remove-label, --skip-inbox, --mark-read, --star, --forward");
+      process.exit(1);
+    }
+
+    const { createFilter } = await import("./lib/gmail.ts");
+    const criteria: Record<string, unknown> = {};
+    if (from) criteria.from = from;
+    if (to) criteria.to = to;
+    if (subject) criteria.subject = subject;
+    if (query) criteria.query = query;
+    if (hasAttachment) criteria.hasAttachment = true;
+
+    const action: Record<string, unknown> = {};
+    if (addLabelIds.length > 0) action.addLabelIds = addLabelIds;
+    if (removeLabelIds.length > 0) action.removeLabelIds = removeLabelIds;
+    if (forward) action.forward = forward;
+
+    const filter = await createFilter(criteria, action);
+    console.log(`Created filter ${filter.id}`);
+    return;
+  }
+
+  if (subcommand === "delete") {
+    const filterId = args[2];
+    if (!filterId) {
+      console.error("Usage: cmail filters delete <id>");
+      process.exit(1);
+    }
+    const { deleteFilter } = await import("./lib/gmail.ts");
+    await deleteFilter(filterId);
+    console.log("Deleted filter");
+    return;
+  }
+
+  if (subcommand && subcommand !== "list") {
+    console.error("Usage:");
+    console.error("  cmail filters list                     List all filters");
+    console.error("  cmail filters create --from x --add-label Y --skip-inbox");
+    console.error("  cmail filters delete <id>              Delete a filter");
+    process.exit(1);
+  }
+
+  // Default: list
+  const { listFilters } = await import("./lib/gmail.ts");
+  const allFilters = await listFilters();
+
+  if (allFilters.length === 0) {
+    console.log("No filters found.");
+    return;
+  }
+
+  // Resolve label IDs to names for display
+  const db = getDb();
+  const labels = getLabels(db);
+  const idToName = new Map(labels.map((l) => [l.id, l.name]));
+  const resolveName = (id: string) => idToName.get(id) || id;
+
+  for (const f of allFilters) {
+    const parts: string[] = [];
+
+    // Criteria
+    if (f.criteria.from) parts.push(`from:${f.criteria.from}`);
+    if (f.criteria.to) parts.push(`to:${f.criteria.to}`);
+    if (f.criteria.subject) parts.push(`subject:"${f.criteria.subject}"`);
+    if (f.criteria.query) parts.push(`query:"${f.criteria.query}"`);
+    if (f.criteria.hasAttachment) parts.push("has:attachment");
+
+    // Actions
+    const actions: string[] = [];
+    if (f.action.addLabelIds?.length) {
+      actions.push(`+${f.action.addLabelIds.map(resolveName).join(", +")}`);
+    }
+    if (f.action.removeLabelIds?.length) {
+      const removed = f.action.removeLabelIds.map(resolveName);
+      if (removed.includes("INBOX")) actions.push("skip inbox");
+      if (removed.includes("UNREAD")) actions.push("mark read");
+      const other = removed.filter((r) => r !== "INBOX" && r !== "UNREAD");
+      if (other.length) actions.push(`-${other.join(", -")}`);
+    }
+    if (f.action.forward) actions.push(`fwd:${f.action.forward}`);
+
+    console.log(`  ${f.id}  ${parts.join(" ")}  →  ${actions.join(", ")}`);
   }
 }
 
@@ -901,6 +1127,8 @@ Usage:
   cmail download <id> -o ~/Downloads  Save to specific directory
   cmail tag <id> <label>          Add a label to an email
   cmail tag <id> +Label -Label   Add and remove labels
+  cmail archive <id>              Archive a message (remove from inbox)
+  cmail archive <id> --thread     Archive entire thread
   cmail count                    Count inbox emails
   cmail count --unread           Count unread inbox emails
   cmail count --starred          Count starred emails
@@ -908,6 +1136,10 @@ Usage:
   cmail count -q "from:alice"    Count matching a query
   cmail tags list                List all labels
   cmail tags create <name>       Create a new label
+  cmail filters list             List all Gmail filters
+  cmail filters create --from x@y.com --add-label "News" --skip-inbox
+                                  Create a filter (criteria + actions)
+  cmail filters delete <id>      Delete a filter
   cmail send --to a@b.com --subject "Hi" --body "Hello"
                                   Send a new email
   cmail send --reply 3 --body "Thanks!"
@@ -1008,6 +1240,9 @@ try {
     case "tag":
       await tag();
       break;
+    case "archive":
+      await archive();
+      break;
     case "count":
       await count();
       break;
@@ -1019,6 +1254,9 @@ try {
       break;
     case "tags":
       await tags();
+      break;
+    case "filters":
+      await filters();
       break;
     case undefined:
       await list();

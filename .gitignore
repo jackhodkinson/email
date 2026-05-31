@@ -19,6 +19,7 @@ src-tauri/target/
 
 # Editor
 .vscode/settings.json
+.claude/worktrees/
 
 # Bun
 *.bun
