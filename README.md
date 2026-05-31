@@ -118,6 +118,8 @@ bun --bun run dev
 
 Opens on [http://localhost:3001](http://localhost:3001). The web app shares the same core library and SQLite database as the CLI.
 
+A mobile-friendly version of the web app is planned.
+
 ### Desktop app (Tauri)
 
 The web app can also run as a native desktop app via Tauri:
