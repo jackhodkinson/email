@@ -783,6 +783,12 @@ code {
     padding: 0 2rem 0 2rem;
     font-size: 0.875rem;
     line-height: 1.25rem;
+    /* Prevent iOS Safari auto-zoom: any input with font-size < 16px gets
+       zoomed on focus regardless of the viewport meta. */
+    @media (max-width: 1023px) {
+      font-size: 16px;
+      height: 2.25rem;
+    }
     border: 1px solid var(--input);
     border-radius: var(--radius-md);
     background-color: var(--background);
