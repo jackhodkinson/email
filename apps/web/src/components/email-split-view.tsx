@@ -568,6 +568,7 @@ export function EmailSplitView({
             availableLabels={availableLabels}
             onToggleThreadLabel={handleToggleThreadLabel}
             labelsBusy={labelMutation.isPending}
+            onArchive={onRemoveFromInbox}
           />
         </div>
       </section>

@@ -296,6 +296,33 @@ code {
   .email-list {
     outline: none;
   }
+  .email-item-wrap {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .email-item-wrap__bg,
+  .email-item__swipe-bg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-right: 1.25rem;
+    background-color: oklch(0.55 0.18 145);
+    color: white;
+    opacity: 0;
+    transition: opacity 120ms ease, background-color 120ms ease;
+    pointer-events: none;
+  }
+  .email-item-wrap--swiping .email-item__swipe-bg {
+    opacity: 1;
+  }
+  .email-item-wrap--triggered .email-item__swipe-bg {
+    background-color: oklch(0.62 0.2 145);
+  }
   .email-item {
     position: relative;
     width: 100%;
@@ -305,6 +332,8 @@ code {
     padding: 0.625rem 1rem;
     cursor: pointer;
     transition: background-color 150ms ease;
+    background-color: var(--card);
+    will-change: transform;
   }
   .email-item:hover:not(.email-item--selected) {
     background-color: oklch(from var(--muted) l c h / 0.3);

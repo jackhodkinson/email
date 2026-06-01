@@ -1,4 +1,6 @@
-import { forwardRef, memo } from "react";
+import { forwardRef, memo, useCallback, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/date";
 import {
@@ -9,6 +11,10 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+
+// Swipe-to-archive (touch only)
+const SWIPE_TRIGGER_PX = 96;
+const SWIPE_DIRECTION_LOCK_PX = 8;
 
 interface EmailItemProps {
   id: string;
@@ -34,6 +40,7 @@ interface EmailItemProps {
     enabled: boolean,
   ) => void;
   labelsBusy?: boolean;
+  onArchive?: (id: string) => void;
 }
 
 export const EmailItem = memo(
@@ -48,9 +55,103 @@ export const EmailItem = memo(
       availableLabels = [],
       onToggleThreadLabel,
       labelsBusy = false,
+      onArchive,
     },
     ref,
   ) {
+    const [swipeX, setSwipeX] = useState(0);
+    const [animateBack, setAnimateBack] = useState(false);
+    const swipeStateRef = useRef<{
+      startX: number;
+      startY: number;
+      active: boolean;
+      pointerId: number;
+    } | null>(null);
+    const suppressClickRef = useRef(false);
+
+    const onPointerDown = useCallback(
+      (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (!onArchive || e.pointerType !== "touch") return;
+        swipeStateRef.current = {
+          startX: e.clientX,
+          startY: e.clientY,
+          active: false,
+          pointerId: e.pointerId,
+        };
+        setAnimateBack(false);
+      },
+      [onArchive],
+    );
+
+    const onPointerMove = useCallback(
+      (e: ReactPointerEvent<HTMLDivElement>) => {
+        const state = swipeStateRef.current;
+        if (!state || state.pointerId !== e.pointerId) return;
+        const dx = e.clientX - state.startX;
+        const dy = e.clientY - state.startY;
+        if (!state.active) {
+          // Lock direction: only horizontal swipes engage; let vertical scroll pass.
+          if (Math.abs(dy) > SWIPE_DIRECTION_LOCK_PX && Math.abs(dy) > Math.abs(dx)) {
+            swipeStateRef.current = null;
+            return;
+          }
+          if (Math.abs(dx) > SWIPE_DIRECTION_LOCK_PX) {
+            state.active = true;
+            try {
+              (e.currentTarget as Element).setPointerCapture(e.pointerId);
+            } catch {}
+          } else {
+            return;
+          }
+        }
+        // Only allow swipe-left.
+        const clamped = Math.min(0, dx);
+        setSwipeX(clamped);
+        e.preventDefault();
+      },
+      [],
+    );
+
+    const finishSwipe = useCallback(
+      (commit: boolean) => {
+        const state = swipeStateRef.current;
+        swipeStateRef.current = null;
+        if (!state) return;
+        if (state.active) suppressClickRef.current = true;
+        if (commit && state.active && onArchive) {
+          // Slide all the way out, then archive.
+          setAnimateBack(true);
+          setSwipeX(-window.innerWidth);
+          window.setTimeout(() => onArchive(id.replace(/^email-/, "")), 180);
+          return;
+        }
+        setAnimateBack(true);
+        setSwipeX(0);
+      },
+      [id, onArchive],
+    );
+
+    const onPointerEnd = useCallback(
+      (e: ReactPointerEvent<HTMLDivElement>) => {
+        const state = swipeStateRef.current;
+        if (!state || state.pointerId !== e.pointerId) return;
+        const dx = e.clientX - state.startX;
+        finishSwipe(state.active && dx <= -SWIPE_TRIGGER_PX);
+      },
+      [finishSwipe],
+    );
+
+    const onClickCapture = useCallback((e: React.MouseEvent) => {
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, []);
+
+    const swiping = swipeX < 0;
+    const triggered = swipeX <= -SWIPE_TRIGGER_PX;
+
     const content = (
       <div
         ref={ref}
@@ -58,10 +159,30 @@ export const EmailItem = memo(
         role="option"
         aria-selected={Boolean(isSelected)}
         className={cn(
+          "email-item-wrap",
+          swiping && "email-item-wrap--swiping",
+          triggered && "email-item-wrap--triggered",
+        )}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onClickCapture={onClickCapture}
+      >
+      <div className="email-item__swipe-bg" aria-hidden="true">
+        <Archive className="size-5" />
+        <span className="text-sm">Archive</span>
+      </div>
+      <div
+        className={cn(
           "email-item",
           isSelected && "email-item--selected",
           !email.isRead && "email-item--unread",
         )}
+        style={{
+          transform: swipeX ? `translate3d(${swipeX}px,0,0)` : undefined,
+          transition: animateBack ? "transform 180ms ease-out" : undefined,
+        }}
         onClick={() => onSelectEmail?.(email.id)}
         onMouseEnter={() => onHoverEmail?.(email.id)}
       >
@@ -107,6 +228,7 @@ export const EmailItem = memo(
         {!email.isRead && (
           <div className="unread-dot" />
         )}
+      </div>
       </div>
     );
 

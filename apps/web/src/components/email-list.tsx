@@ -30,6 +30,7 @@ interface EmailListProps {
     enabled: boolean,
   ) => void;
   labelsBusy?: boolean;
+  onArchive?: (id: string) => void;
 }
 
 const ESTIMATED_ROW_HEIGHT = 76;
@@ -44,6 +45,7 @@ export function EmailList({
   availableLabels = [],
   onToggleThreadLabel,
   labelsBusy = false,
+  onArchive,
 }: EmailListProps) {
   const internalRef = useRef<HTMLDivElement>(null);
   const scrollRef = listRef ?? internalRef;
@@ -120,6 +122,7 @@ export function EmailList({
                   availableLabels={availableLabels}
                   onToggleThreadLabel={onToggleThreadLabel}
                   labelsBusy={labelsBusy}
+                  onArchive={onArchive}
                 />
               </div>
             );
