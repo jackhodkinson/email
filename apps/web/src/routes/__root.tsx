@@ -81,7 +81,7 @@ function RootHeader({
     | undefined;
 
   return (
-    <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
+    <header className="hidden lg:flex h-10 shrink-0 items-center gap-2 border-b px-3">
       <SidebarTrigger className="-ml-1" />
       <SearchBox
         ref={searchBoxRef}
