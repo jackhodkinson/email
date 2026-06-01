@@ -21,7 +21,7 @@ import {
 } from "./gmail.ts";
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
-const CONCURRENT_FETCHES = 10;
+const CONCURRENT_FETCHES = 2;
 const BATCH_SIZE = 500;
 
 // ─── Public API ──────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export async function initialSync(db: Database, since?: string): Promise<void> {
   upsertLabels(db, labels);
 
   // Build the since query
-  const sinceQuery = since ?? buildSinceQuery("1y");
+  const sinceQuery = since ?? buildSinceQuery("3m");
   setSyncState(db, { emailAddress: profile.emailAddress, syncSince: sinceQuery });
 
   // Collect all message IDs
@@ -248,7 +248,11 @@ async function fetchWithRetry<T>(
       return await fn();
     } catch (err: any) {
       const status = err?.code ?? err?.response?.status;
-      if (status === 429 && i < maxRetries - 1) {
+      const message = String(err?.message ?? "");
+      const isQuotaError =
+        status === 429 ||
+        (status === 403 && /quota|rate limit|userRateLimitExceeded/i.test(message));
+      if (isQuotaError && i < maxRetries - 1) {
         const delay = Math.pow(2, i) * 1000;
         await new Promise((r) => setTimeout(r, delay));
         continue;
