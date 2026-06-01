@@ -17,7 +17,16 @@ import { join, extname } from "path";
 // ── Env / paths ──────────────────────────────────────────────────────────────
 
 const port = Number(process.env.PORT) || 3001;
+const hostname = process.env.HOST ?? "127.0.0.1";
 const emailDataDir = process.env.EMAIL_DATA_DIR;
+
+// When set, every request must carry an `X-ExeDev-Email` header (injected by
+// the exe.dev proxy for authenticated users) matching one of these emails.
+// Comma-separated. Leave unset for local/Tauri use where the proxy is absent.
+const requireExeEmail = (process.env.REQUIRE_EXE_EMAIL ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 const distServerDir = process.env.DIST_SERVER_DIR ?? join(import.meta.dir, "dist", "server");
 const distClientDir = process.env.DIST_CLIENT_DIR ?? join(import.meta.dir, "dist", "client");
 
@@ -77,9 +86,32 @@ const appHandler = serverModule.default;
 
 // ── Server ───────────────────────────────────────────────────────────────────
 
+function authCheck(req: Request): Response | null {
+  if (requireExeEmail.length === 0) return null;
+  const header = req.headers.get("x-exedev-email");
+  if (!header) {
+    // No proxy header at all → request did not come through the exe.dev proxy.
+    return new Response(
+      "Forbidden: this app is only reachable through the exe.dev proxy.",
+      { status: 403, headers: { "Content-Type": "text/plain" } },
+    );
+  }
+  if (!requireExeEmail.includes(header.toLowerCase())) {
+    return new Response(
+      `Forbidden: ${header} is not authorized for this app.`,
+      { status: 403, headers: { "Content-Type": "text/plain" } },
+    );
+  }
+  return null;
+}
+
 Bun.serve({
   port,
+  hostname,
   async fetch(req: Request): Promise<Response> {
+    const denied = authCheck(req);
+    if (denied) return denied;
+
     const url = new URL(req.url);
     const pathname = url.pathname;
 
@@ -113,3 +145,7 @@ Bun.serve({
 });
 
 console.log(`SERVER_READY:${port}`);
+if (requireExeEmail.length > 0) {
+  console.log(`AUTH: restricted to ${requireExeEmail.join(", ")} (X-ExeDev-Email)`);
+}
+console.log(`LISTEN: ${hostname}:${port}`);
