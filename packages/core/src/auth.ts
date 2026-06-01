@@ -122,3 +122,50 @@ export async function exchangeCodeForTokens(code: string): Promise<void> {
   const { tokens } = await oauth2Client.getToken(code);
   saveTokens(tokens as Tokens);
 }
+
+// ── Web-app OAuth flow (arbitrary redirect URI) ─────────────────────────────
+//
+// Google deprecated the OOB ("urn:ietf:wg:oauth:2.0:oob") flow used by the CLI.
+// The web app uses a normal redirect URI flow so the user can complete sign-in
+// entirely in the browser.
+
+export function credentialsConfigured(): boolean {
+  const { existsSync } = require("fs");
+  return existsSync(CREDENTIALS_PATH);
+}
+
+export function getAuthUrlForRedirect(redirectUri: string): string {
+  const credentials = loadCredentials();
+  const config = credentials.installed || credentials.web;
+  if (!config) throw new Error("Invalid credentials file format");
+
+  const oauth2Client = new google.auth.OAuth2(
+    config.client_id,
+    config.client_secret,
+    redirectUri,
+  );
+
+  return oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: SCOPES,
+    prompt: "consent",
+  });
+}
+
+export async function exchangeCodeForTokensWithRedirect(
+  code: string,
+  redirectUri: string,
+): Promise<void> {
+  const credentials = loadCredentials();
+  const config = credentials.installed || credentials.web;
+  if (!config) throw new Error("Invalid credentials file format");
+
+  const oauth2Client = new google.auth.OAuth2(
+    config.client_id,
+    config.client_secret,
+    redirectUri,
+  );
+
+  const { tokens } = await oauth2Client.getToken(code);
+  saveTokens(tokens as Tokens);
+}

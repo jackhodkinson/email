@@ -13,6 +13,8 @@ import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailIdRouteImport } from './routes/email.$id'
 import { Route as ApiRealtimeRouteImport } from './routes/api.realtime'
+import { Route as ApiAuthStartRouteImport } from './routes/api.auth.start'
+import { Route as ApiAuthCallbackRouteImport } from './routes/api.auth.callback'
 
 const ContactsRoute = ContactsRouteImport.update({
   id: '/contacts',
@@ -34,18 +36,32 @@ const ApiRealtimeRoute = ApiRealtimeRouteImport.update({
   path: '/api/realtime',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthStartRoute = ApiAuthStartRouteImport.update({
+  id: '/api/auth/start',
+  path: '/api/auth/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
+  id: '/api/auth/callback',
+  path: '/api/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/start': typeof ApiAuthStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/start': typeof ApiAuthStartRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +69,34 @@ export interface FileRoutesById {
   '/contacts': typeof ContactsRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/start': typeof ApiAuthStartRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/contacts' | '/api/realtime' | '/email/$id'
+  fullPaths:
+    | '/'
+    | '/contacts'
+    | '/api/realtime'
+    | '/email/$id'
+    | '/api/auth/callback'
+    | '/api/auth/start'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/contacts' | '/api/realtime' | '/email/$id'
-  id: '__root__' | '/' | '/contacts' | '/api/realtime' | '/email/$id'
+  to:
+    | '/'
+    | '/contacts'
+    | '/api/realtime'
+    | '/email/$id'
+    | '/api/auth/callback'
+    | '/api/auth/start'
+  id:
+    | '__root__'
+    | '/'
+    | '/contacts'
+    | '/api/realtime'
+    | '/email/$id'
+    | '/api/auth/callback'
+    | '/api/auth/start'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +104,8 @@ export interface RootRouteChildren {
   ContactsRoute: typeof ContactsRoute
   ApiRealtimeRoute: typeof ApiRealtimeRoute
   EmailIdRoute: typeof EmailIdRoute
+  ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
+  ApiAuthStartRoute: typeof ApiAuthStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +138,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRealtimeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/start': {
+      id: '/api/auth/start'
+      path: '/api/auth/start'
+      fullPath: '/api/auth/start'
+      preLoaderRoute: typeof ApiAuthStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/callback': {
+      id: '/api/auth/callback'
+      path: '/api/auth/callback'
+      fullPath: '/api/auth/callback'
+      preLoaderRoute: typeof ApiAuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +160,8 @@ const rootRouteChildren: RootRouteChildren = {
   ContactsRoute: ContactsRoute,
   ApiRealtimeRoute: ApiRealtimeRoute,
   EmailIdRoute: EmailIdRoute,
+  ApiAuthCallbackRoute: ApiAuthCallbackRoute,
+  ApiAuthStartRoute: ApiAuthStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

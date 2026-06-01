@@ -1,7 +1,10 @@
 export {
   createOAuth2Client,
+  credentialsConfigured,
   exchangeCodeForTokens,
+  exchangeCodeForTokensWithRedirect,
   getAuthUrl,
+  getAuthUrlForRedirect,
   isAuthenticated,
 } from "./auth.ts";
 
