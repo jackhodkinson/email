@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
 import { useMatches, useRouter } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  commandPaletteViews,
+  getActiveMailViewId,
+} from "@/lib/mail-views";
+import { userLabelsQueryOptions } from "@/lib/query";
 import { Menu, MessagesSquare, RefreshCw, Search, SquarePen } from "lucide-react";
 import { syncAccount } from "../server/functions";
 import { Button } from "./ui/button";
@@ -27,10 +32,28 @@ export function EmailListToolbar({
   const { setOpenMobile } = useSidebar();
   const searchBoxRef = useSearchBox();
   const matches = useMatches();
-  const search = matches[matches.length - 1]?.search as
+  const lastMatch = matches[matches.length - 1];
+  const search = lastMatch?.search as
     | { q?: string; threads?: boolean; category?: string; label?: string }
     | undefined;
+  const isContactsRoute = (lastMatch?.routeId ?? "").startsWith("/contacts");
   const hasActiveQuery = Boolean(search?.q);
+
+  const { data: labelData } = useQuery(userLabelsQueryOptions());
+  const activeViewTitle = useMemo(() => {
+    const id = getActiveMailViewId({
+      category: search?.category,
+      label: search?.label,
+      isContactsRoute,
+    });
+    if (search?.label) {
+      const label = labelData?.labels.find((l) => l.id === search.label);
+      if (label) return label.name.replace(/^Cmail\//, "");
+      return "Label";
+    }
+    const view = commandPaletteViews.find((v) => v.id === id);
+    return view?.title ?? "Inbox";
+  }, [isContactsRoute, labelData, search?.category, search?.label]);
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Keep the search bar visible whenever there is an active query.
@@ -69,16 +92,23 @@ export function EmailListToolbar({
     <>
     <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-b border-border flex-shrink-0">
       {/* Mobile: open the full-screen sidebar. Desktop: keep the threads-only toggle. */}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Open navigation"
-        onClick={() => setOpenMobile(true)}
-        title="Menu"
-        className="lg:hidden"
-      >
-        <Menu />
-      </Button>
+      <div className="flex items-center gap-1 min-w-0 lg:hidden">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Open navigation"
+          onClick={() => setOpenMobile(true)}
+          title="Menu"
+        >
+          <Menu />
+        </Button>
+        <span
+          className="text-sm font-medium truncate min-w-0"
+          title={activeViewTitle}
+        >
+          {activeViewTitle}
+        </span>
+      </div>
       <Button
         variant={threadsOnly ? "secondary" : "ghost"}
         size="icon-sm"
