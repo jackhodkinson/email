@@ -540,7 +540,7 @@ export function EmailSplitView({
       : "block";
 
   return (
-    <div className="flex h-full w-full flex-col lg:flex-row p-2 gap-2">
+    <div className="flex h-full w-full flex-col lg:flex-row lg:p-2 lg:gap-2">
       <section
         ref={listFocusRef}
         tabIndex={0}
@@ -551,7 +551,7 @@ export function EmailSplitView({
           listVisibility,
         )}
       >
-        <div className="h-full min-h-0 w-full rounded-lg overflow-hidden flex flex-col bg-card border border-border/50">
+        <div className="h-full min-h-0 w-full overflow-hidden flex flex-col bg-card lg:rounded-lg lg:border lg:border-border/50">
           <EmailListToolbar
             accountId={accountId}
             threadsOnly={threadsOnly}
@@ -583,7 +583,7 @@ export function EmailSplitView({
             : isFullscreen
               ? "email-viewer fixed inset-0 z-50 bg-background"
               : cn(
-                  "email-viewer flex-1 min-w-0 h-full min-h-0 rounded-lg border border-border/50 flex-col",
+                  "email-viewer flex-1 min-w-0 h-full min-h-0 lg:rounded-lg lg:border lg:border-border/50 flex-col",
                   // Single-pane below lg: only show the viewer once a message is open
                   selectedEmailId ? "flex" : "hidden lg:flex",
                 )

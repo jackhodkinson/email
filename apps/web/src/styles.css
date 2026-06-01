@@ -541,12 +541,14 @@ code {
   .email-view {
     border-radius: var(--radius-lg);
   }
-  .email-view:focus-within {
-    outline: 2px solid oklch(from var(--primary) l c h / 0.4);
-    outline-offset: -2px;
-  }
-  .email-viewer.fixed .email-view:focus-within {
-    outline: none;
+  @media (min-width: 1024px) {
+    .email-view:focus-within {
+      outline: 2px solid oklch(from var(--primary) l c h / 0.4);
+      outline-offset: -2px;
+    }
+    .email-viewer.fixed .email-view:focus-within {
+      outline: none;
+    }
   }
   .thread-msg {
     border: 1px solid transparent;
