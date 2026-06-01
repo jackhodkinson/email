@@ -550,6 +550,33 @@ code {
       outline: none;
     }
   }
+  /* Tighter side padding for the detail view on narrow screens */
+  @media (max-width: 1023px) {
+    .email-detail-header {
+      padding: 0.75rem 0.75rem 0;
+    }
+    .email-detail-sender {
+      padding: 0.75rem;
+    }
+    .panel-body {
+      padding: 0.75rem;
+    }
+    .panel-header {
+      padding: 0.75rem;
+    }
+    .thread-msg__header {
+      padding: 0.625rem 0.75rem;
+    }
+    .thread-msg__details {
+      padding: 0.5rem 0.75rem;
+    }
+    .thread-msg .thread-msg__details {
+      padding-left: 0.75rem;
+    }
+    .thread-msg__body {
+      padding: 0.75rem;
+    }
+  }
   .thread-msg {
     border: 1px solid transparent;
     border-radius: var(--radius-lg);
