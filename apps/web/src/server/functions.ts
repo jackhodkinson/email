@@ -3,7 +3,6 @@ import { createServerFn } from "@tanstack/react-start";
 type MailCore = typeof import("@jack/mail-core");
 
 const DEFAULT_ACCOUNT_ID = "default";
-const STALE_MS = 5 * 60 * 1000;
 
 async function getCore(): Promise<MailCore> {
   return await import("@jack/mail-core");
@@ -89,22 +88,12 @@ async function getAccountInfo(core: MailCore) {
   };
 }
 
-async function ensureSynced(core: MailCore) {
+function hasLocalMailbox(core: MailCore) {
   if (!core.isAuthenticated()) return false;
 
   const db = core.getDb();
   const state = core.getSyncState(db);
-
-  if (!state.initialSyncDone) {
-    await core.initialSync(db);
-    return true;
-  }
-
-  if (!state.lastSyncAt || Date.now() - state.lastSyncAt > STALE_MS) {
-    await core.incrementalSync(db);
-  }
-
-  return true;
+  return state.initialSyncDone;
 }
 
 function getThreadMessageCount(core: MailCore, threadId: string): number {
@@ -226,7 +215,7 @@ export const syncAccount = createServerFn({ method: "POST" })
 export const getSidebarCounts = createServerFn({ method: "GET" }).handler(
   async () => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady)
       return {
         inbox: 0,
@@ -284,7 +273,7 @@ export const getInboxEmails = createServerFn({ method: "GET" })
   .inputValidator((data: { accountId?: string; limit?: number }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return { emails: [], accountId: null };
 
     const db = core.getDb();
@@ -303,7 +292,7 @@ export const getEmailById = createServerFn({ method: "GET" })
   .inputValidator((data: { emailId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return null;
 
     const db = core.getDb();
@@ -340,7 +329,7 @@ export const getAttachments = createServerFn({ method: "GET" })
   .inputValidator((data: { emailId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return [];
 
     const result = await core.getEmail(data.emailId);
@@ -481,7 +470,7 @@ export const getThreadedInboxEmails = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return { threads: [], accountId: null };
 
     const db = core.getDb();
@@ -514,7 +503,7 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return { threads: [], accountId: null };
 
     const db = core.getDb();
@@ -584,7 +573,7 @@ export const searchThreadedInboxEmails = createServerFn({ method: "GET" })
 export const getUserLabels = createServerFn({ method: "GET" }).handler(
   async () => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return { labels: [] as Array<{ id: string; name: string; unread: number }> };
 
     const db = core.getDb();
@@ -664,7 +653,7 @@ export const getThreadEmails = createServerFn({ method: "GET" })
   .inputValidator((data: { threadId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return [];
 
     const db = core.getDb();
@@ -924,7 +913,7 @@ export const getContactsList = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }) => {
     const core = await getCore();
-    const isReady = await ensureSynced(core);
+    const isReady = hasLocalMailbox(core);
     if (!isReady) return { contacts: [] as Array<{ email: string; name: string; messageCount: number; threadCount: number; lastContactDate: number; firstContactDate: number }> };
 
     const db = core.getDb();
