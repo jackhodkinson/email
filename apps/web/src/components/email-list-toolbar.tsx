@@ -1,11 +1,13 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
-import { useRouter } from "@tanstack/react-router";
+import { useMatches, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Menu, MessagesSquare, RefreshCw, SquarePen } from "lucide-react";
+import { Menu, MessagesSquare, RefreshCw, Search, SquarePen } from "lucide-react";
 import { syncAccount } from "../server/functions";
 import { Button } from "./ui/button";
 import { useSidebar } from "./ui/sidebar";
+import { SearchBox } from "./search-box";
+import { useSearchBox } from "@/lib/search-context";
 
 interface EmailListToolbarProps {
   accountId: string;
@@ -23,6 +25,30 @@ export function EmailListToolbar({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { setOpenMobile } = useSidebar();
+  const searchBoxRef = useSearchBox();
+  const matches = useMatches();
+  const search = matches[matches.length - 1]?.search as
+    | { q?: string; threads?: boolean; category?: string; label?: string }
+    | undefined;
+  const hasActiveQuery = Boolean(search?.q);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Keep the search bar visible whenever there is an active query.
+  useEffect(() => {
+    if (hasActiveQuery) setSearchOpen(true);
+  }, [hasActiveQuery]);
+
+  const toggleSearch = useCallback(() => {
+    setSearchOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        // Focus the input on the next tick once it has rendered.
+        requestAnimationFrame(() => searchBoxRef.current?.focus());
+      }
+      return next;
+    });
+  }, [searchBoxRef]);
+
   const syncing$ = useObservable(false);
   const syncing = useValue(syncing$);
 
@@ -40,6 +66,7 @@ export function EmailListToolbar({
   }, [accountId, queryClient, router]);
 
   return (
+    <>
     <div className="flex items-center justify-between gap-1 px-2 py-1.5 border-b border-border flex-shrink-0">
       {/* Mobile: open the full-screen sidebar. Desktop: keep the threads-only toggle. */}
       <Button
@@ -69,6 +96,17 @@ export function EmailListToolbar({
           Compose
         </Button>
         <Button
+          variant={searchOpen ? "secondary" : "ghost"}
+          size="icon-sm"
+          aria-label="Search emails"
+          aria-expanded={searchOpen}
+          onClick={toggleSearch}
+          className="lg:hidden"
+          title="Search"
+        >
+          <Search />
+        </Button>
+        <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Refresh emails"
@@ -79,5 +117,17 @@ export function EmailListToolbar({
         </Button>
       </div>
     </div>
+    {searchOpen && (
+      <div className="lg:hidden flex items-center px-2 py-1.5 border-b border-border flex-shrink-0">
+        <SearchBox
+          ref={searchBoxRef}
+          query={search?.q}
+          threadsOnly={!!search?.threads}
+          category={search?.category}
+          label={search?.label}
+        />
+      </div>
+    )}
+    </>
   );
 }
