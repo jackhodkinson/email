@@ -70,6 +70,7 @@ export function renderHtmlEmail(
   const blockedRemoteImages = options.showRemoteImages
     ? false
     : blockRemoteImages(doc);
+  linkifyTextNodes(doc);
   retargetLinks(doc);
   const { quotedHtml } = extractQuotedRegion(doc);
 
@@ -214,6 +215,68 @@ function blockRemoteImages(doc: Document): boolean {
 // ---------------------------------------------------------------------------
 // Link retargeting
 // ---------------------------------------------------------------------------
+
+// Gmail (and most modern clients) auto-link bare URLs/emails even inside HTML
+// emails. Walk text nodes and wrap matches in <a>, skipping anything already
+// inside an <a>, <code>, <pre>, <style>, <script>, or <textarea>.
+const LINKIFY_RE =
+  /(\bhttps?:\/\/[^\s<>"'`)]+[^\s<>"'`).,;:!?])|(\bwww\.[^\s<>"'`)]+[^\s<>"'`).,;:!?])|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
+const LINKIFY_SKIP = new Set([
+  "A",
+  "CODE",
+  "PRE",
+  "STYLE",
+  "SCRIPT",
+  "TEXTAREA",
+  "HEAD",
+  "TITLE",
+]);
+
+function linkifyTextNodes(doc: Document): void {
+  const body = doc.body;
+  if (!body) return;
+  const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      let p: Node | null = node.parentNode;
+      while (p && p.nodeType === 1) {
+        if (LINKIFY_SKIP.has((p as Element).tagName)) return NodeFilter.FILTER_REJECT;
+        p = p.parentNode;
+      }
+      return LINKIFY_RE.test(node.nodeValue || "")
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    },
+  });
+
+  const targets: Text[] = [];
+  let current = walker.nextNode();
+  while (current) {
+    targets.push(current as Text);
+    current = walker.nextNode();
+  }
+
+  for (const node of targets) {
+    const text = node.nodeValue || "";
+    LINKIFY_RE.lastIndex = 0;
+    const frag = doc.createDocumentFragment();
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = LINKIFY_RE.exec(text))) {
+      const match = m[0];
+      const start = m.index;
+      if (start > last) frag.appendChild(doc.createTextNode(text.slice(last, start)));
+      const a = doc.createElement("a");
+      const isEmail = !!m[3];
+      const isWww = !!m[2];
+      a.href = isEmail ? `mailto:${match}` : isWww ? `https://${match}` : match;
+      a.textContent = match;
+      frag.appendChild(a);
+      last = start + match.length;
+    }
+    if (last < text.length) frag.appendChild(doc.createTextNode(text.slice(last)));
+    node.parentNode?.replaceChild(frag, node);
+  }
+}
 
 function retargetLinks(doc: Document): void {
   for (const a of Array.from(doc.querySelectorAll("a"))) {
