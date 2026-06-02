@@ -631,7 +631,9 @@ code {
       padding: 0.75rem;
     }
     .panel-body {
-      padding: 0.75rem;
+      /* Let the email body span edge-to-edge on narrow screens so HTML
+         emails (often designed for 600px+) have the most width to work with. */
+      padding: 0.75rem 0;
     }
     .panel-header {
       padding: 0.75rem;
@@ -646,7 +648,7 @@ code {
       padding-left: 0.75rem;
     }
     .thread-msg__body {
-      padding: 0.75rem;
+      padding: 0.75rem 0;
     }
   }
   .thread-msg {
