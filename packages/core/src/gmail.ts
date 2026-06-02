@@ -45,6 +45,18 @@ export interface AttachmentInfo {
   mimeType: string;
   size: number;
   attachmentId: string;
+  /** RFC 2392 Content-ID without surrounding angle brackets (e.g. "image001"). */
+  contentId?: string;
+  /** True when the part has Content-Disposition: inline (or implied by a cid: ref). */
+  isInline?: boolean;
+}
+
+function headerValue(
+  headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
+  name: string,
+): string | undefined {
+  const h = headers?.find((x) => x.name?.toLowerCase() === name.toLowerCase());
+  return h?.value || undefined;
 }
 
 function getGmailClient(): gmail_v1.Gmail {
@@ -73,12 +85,28 @@ function extractAttachments(parts: gmail_v1.Schema$MessagePart[] | undefined): A
   if (!parts) return [];
   const attachments: AttachmentInfo[] = [];
   for (const part of parts) {
-    if (part.filename && part.body?.attachmentId) {
+    const hasBytes = !!part.body?.attachmentId;
+    const contentIdHeader = headerValue(part.headers, "Content-ID");
+    const dispositionHeader =
+      headerValue(part.headers, "Content-Disposition") || "";
+    const isInline =
+      /(^|;)\s*inline(\s*;|$)/i.test(dispositionHeader) || !!contentIdHeader;
+    // Some inline images have no filename header — synthesize one.
+    const filename =
+      part.filename ||
+      (isInline && part.mimeType?.startsWith("image/")
+        ? `inline.${part.mimeType.split("/")[1] || "bin"}`
+        : "");
+    if (hasBytes && (filename || isInline)) {
       attachments.push({
-        filename: part.filename,
+        filename: filename || "attachment",
         mimeType: part.mimeType || "application/octet-stream",
         size: part.body?.size || 0,
-        attachmentId: part.body.attachmentId,
+        attachmentId: part.body!.attachmentId!,
+        contentId: contentIdHeader
+          ? contentIdHeader.replace(/^<|>$/g, "").trim()
+          : undefined,
+        isInline,
       });
     }
     if (part.parts) {

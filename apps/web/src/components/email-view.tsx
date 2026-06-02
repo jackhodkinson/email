@@ -1,10 +1,13 @@
 import { useCallback, useState } from "react";
 import { EmailContent } from "./email-content";
+import type { InlinePart } from "@/lib/email-render";
 import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
 import { Button } from "./ui/button";
 import { Archive, ArrowLeft, ChevronDown, Mail, MailOpen, Maximize2, Minimize2, Paperclip, Reply } from "lucide-react";
+import { AttachmentsRow } from "./attachments-row";
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/date";
+import { avatarColors } from "@/lib/avatar-color";
 
 interface EmailViewProps {
   email: {
@@ -18,6 +21,7 @@ interface EmailViewProps {
     hasAttachments: boolean;
     isRead: boolean;
     labels: string[];
+    inlineParts?: InlinePart[];
   };
   onReply?: (messageId: string) => void;
   onBack?: () => void;
@@ -126,7 +130,15 @@ export function EmailView({
 
       {/* Sender-centric header */}
       <div className="email-detail-sender">
-        <div className="avatar">{senderInitial}</div>
+        <div
+          className="avatar"
+          style={(() => {
+            const c = avatarColors((senderEmail || senderName).toLowerCase());
+            return { backgroundColor: c.bg, color: c.fg };
+          })()}
+        >
+          {senderInitial}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline justify-between gap-2">
             <span className="email-detail-sender__name" title={senderEmail}>
@@ -184,7 +196,16 @@ export function EmailView({
 
       {/* Email body */}
       <div className="panel-body flex-1 min-h-0 overflow-auto">
-        <EmailContent bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
+        <EmailContent
+          emailId={email.id}
+          bodyHtml={email.bodyHtml}
+          bodyText={email.bodyText}
+          inlineParts={email.inlineParts}
+        />
+        <AttachmentsRow
+          emailId={email.id}
+          hasAttachments={email.hasAttachments}
+        />
       </div>
     </div>
   );

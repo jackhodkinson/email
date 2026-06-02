@@ -12,6 +12,8 @@ export interface AttachmentData {
   filename: string;
   mimeType: string;
   size: number;
+  contentId?: string | null;
+  isInline?: boolean;
 }
 
 interface AttachmentListProps {
@@ -429,17 +431,23 @@ export function AttachmentList({
   emailId,
   className,
 }: AttachmentListProps) {
-  if (attachments.length === 0) {
+  // Hide pure inline images (already rendered in the email body).
+  const visible = attachments.filter(
+    (a) =>
+      !(a.isInline && a.mimeType.startsWith("image/") && !a.filename.match(/\.(pdf|docx?|xlsx?|pptx?|zip|csv|txt)$/i)),
+  );
+  if (visible.length === 0) {
     return null;
   }
 
   return (
     <div className={cn("space-y-2", className)}>
       <div className="text-body text-muted font-medium">
-        Attachments ({attachments.length})
+        Attachments ({visible.length})
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {attachments.map((attachment) => (
+        {visible.map((attachment) => (
+        
           <AttachmentItem
             key={attachment.id}
             attachment={attachment}

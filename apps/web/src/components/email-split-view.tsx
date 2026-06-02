@@ -41,6 +41,7 @@ interface EmailDetail {
   hasAttachments: boolean;
   isRead: boolean;
   labels: string[];
+  inlineParts?: import("@/lib/email-render").InlinePart[];
 }
 
 interface ThreadEmail {
@@ -53,6 +54,7 @@ interface ThreadEmail {
   date: number;
   hasAttachments: boolean;
   isRead: boolean;
+  inlineParts?: import("@/lib/email-render").InlinePart[];
 }
 
 interface EmailSplitViewProps {

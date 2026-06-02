@@ -2,29 +2,36 @@
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import { useObservable, useValue } from "@legendapp/state/react";
+import { ChevronDown, ChevronRight, Image as ImageIcon } from "lucide-react";
 import {
-  sanitizeForIframe,
-  sanitizeHtml,
-  plainTextToHtml,
-} from "@/lib/sanitize";
-import {
-  processQuotedContent,
-  processPlainTextQuotes,
-} from "@/lib/quote-detection";
+  renderHtmlEmail,
+  renderPlainTextEmail,
+  type InlinePart,
+  type RenderResult,
+} from "@/lib/email-render";
 import { useTheme } from "@/lib/theme";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface EmailContentProps {
+  emailId: string;
   bodyHtml: string | null;
   bodyText: string | null;
+  inlineParts?: InlinePart[];
 }
 
-export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
+export function EmailContent({
+  emailId,
+  bodyHtml,
+  bodyText,
+  inlineParts = [],
+}: EmailContentProps) {
   if (bodyHtml) {
-    return <HtmlEmailContent html={bodyHtml} />;
+    return (
+      <HtmlEmail emailId={emailId} html={bodyHtml} inlineParts={inlineParts} />
+    );
   }
   if (bodyText) {
-    return <PlainTextEmailContent text={bodyText} />;
+    return <PlainTextEmail text={bodyText} />;
   }
   return (
     <div className="email-content">
@@ -34,37 +41,50 @@ export function EmailContent({ bodyHtml, bodyText }: EmailContentProps) {
 }
 
 // ---------------------------------------------------------------------------
-// HTML emails — rendered in a sandboxed iframe to preserve original styling
+// HTML email — sandboxed iframe
 // ---------------------------------------------------------------------------
 
-function HtmlEmailContent({ html }: { html: string }) {
+function HtmlEmail({
+  emailId,
+  html,
+  inlineParts,
+}: {
+  emailId: string;
+  html: string;
+  inlineParts: InlinePart[];
+}) {
   const showQuoted$ = useObservable(false);
   const showQuoted = useValue(showQuoted$);
+  const showRemote$ = useObservable(false);
+  const showRemoteImages = useValue(showRemote$);
 
+  // Reset toggles when the source html changes.
   const prevHtmlRef = useRef(html);
   if (prevHtmlRef.current !== html) {
     showQuoted$.set(false);
+    showRemote$.set(false);
     prevHtmlRef.current = html;
   }
 
-  const processed = useMemo(() => {
-    // Extract <style> tags before quote detection (which returns body.innerHTML,
-    // losing any styles that were in <head>).
-    const styleRegex = /<style[^>]*>[\s\S]*?<\/style>/gi;
-    const styles = (html.match(styleRegex) || []).join("\n");
-
-    const { mainContent, quotedContent, hasQuotedContent } =
-      processQuotedContent(html);
-
-    return { mainContent, quotedContent, hasQuotedContent, styles };
-  }, [html]);
+  const rendered = useMemo<RenderResult>(
+    () => renderHtmlEmail(html, { emailId, inlineParts, showRemoteImages }),
+    [html, emailId, inlineParts, showRemoteImages],
+  );
 
   return (
     <div className="email-content">
-      <EmailIframe html={processed.mainContent} styles={processed.styles} />
+      {rendered.blockedRemoteImages && (
+        <RemoteImageBanner onShow={() => showRemote$.set(true)} />
+      )}
 
-      {processed.hasQuotedContent && processed.quotedContent && (
-        <div className="mt-4">
+      <EmailIframe
+        html={rendered.mainHtml}
+        styles={rendered.styles}
+        hasOwnBackground={rendered.hasOwnBackground}
+      />
+
+      {rendered.quotedHtml && (
+        <div className="mt-3">
           <button
             onClick={() => showQuoted$.set(!showQuoted$.get())}
             className="quote-toggle"
@@ -79,18 +99,17 @@ function HtmlEmailContent({ html }: { html: string }) {
               {showQuoted ? "Hide quoted text" : "Show quoted text"}
             </span>
           </button>
-
           {!showQuoted && (
             <div className="quote-collapsed">
-              <span className="quote-collapsed__dots">...</span>
+              <span className="quote-collapsed__dots">…</span>
             </div>
           )}
-
           {showQuoted && (
             <div className="quote-expanded">
               <EmailIframe
-                html={processed.quotedContent}
-                styles={processed.styles}
+                html={rendered.quotedHtml}
+                styles={rendered.styles}
+                hasOwnBackground={rendered.hasOwnBackground}
               />
             </div>
           )}
@@ -101,10 +120,10 @@ function HtmlEmailContent({ html }: { html: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Plain text emails — rendered with prose typography
+// Plain-text email — same iframe pipeline, so typography matches
 // ---------------------------------------------------------------------------
 
-function PlainTextEmailContent({ text }: { text: string }) {
+function PlainTextEmail({ text }: { text: string }) {
   const showQuoted$ = useObservable(false);
   const showQuoted = useValue(showQuoted$);
 
@@ -114,27 +133,17 @@ function PlainTextEmailContent({ text }: { text: string }) {
     prevTextRef.current = text;
   }
 
-  const processed = useMemo(() => {
-    const { mainContent, quotedContent, hasQuotedContent } =
-      processPlainTextQuotes(text);
-    return {
-      mainHtml: sanitizeHtml(plainTextToHtml(mainContent)),
-      quotedHtml: quotedContent
-        ? sanitizeHtml(plainTextToHtml(quotedContent))
-        : null,
-      hasQuotedContent,
-    };
-  }, [text]);
+  const rendered = useMemo(() => renderPlainTextEmail(text), [text]);
 
   return (
     <div className="email-content">
-      <div
-        className="prose prose-sm max-w-none dark:prose-invert"
-        dangerouslySetInnerHTML={{ __html: processed.mainHtml }}
+      <EmailIframe
+        html={rendered.mainHtml}
+        styles={rendered.styles}
+        hasOwnBackground={false}
       />
-
-      {processed.hasQuotedContent && processed.quotedHtml && (
-        <div className="mt-4">
+      {rendered.quotedHtml && (
+        <div className="mt-3">
           <button
             onClick={() => showQuoted$.set(!showQuoted$.get())}
             className="quote-toggle"
@@ -149,18 +158,17 @@ function PlainTextEmailContent({ text }: { text: string }) {
               {showQuoted ? "Hide quoted text" : "Show quoted text"}
             </span>
           </button>
-
           {!showQuoted && (
             <div className="quote-collapsed">
-              <span className="quote-collapsed__dots">...</span>
+              <span className="quote-collapsed__dots">…</span>
             </div>
           )}
-
           {showQuoted && (
             <div className="quote-expanded">
-              <div
-                className="prose prose-sm max-w-none dark:prose-invert text-muted"
-                dangerouslySetInnerHTML={{ __html: processed.quotedHtml }}
+              <EmailIframe
+                html={rendered.quotedHtml}
+                styles=""
+                hasOwnBackground={false}
               />
             </div>
           )}
@@ -171,108 +179,210 @@ function PlainTextEmailContent({ text }: { text: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sandboxed iframe for rendering HTML email content
+// Remote-image banner
 // ---------------------------------------------------------------------------
 
-function EmailIframe({ html, styles = "" }: { html: string; styles?: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(0);
-  const observerRef = useRef<ResizeObserver | null>(null);
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === "dark";
-
-  const srcdoc = useMemo(() => {
-    const sanitized = sanitizeForIframe(html);
-    const sanitizedStyles = styles ? sanitizeForIframe(styles) : "";
-    return buildSrcdoc(sanitized, sanitizedStyles, isDark);
-  }, [html, styles, isDark]);
-
-  const handleLoad = useCallback(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    try {
-      const doc = iframe.contentDocument;
-      if (!doc?.body) return;
-
-      // Retarget all links to open in new tab
-      for (const a of doc.querySelectorAll("a")) {
-        a.setAttribute("target", "_blank");
-        a.setAttribute("rel", "noopener noreferrer");
-      }
-
-      const measure = () => {
-        if (!doc.body) return;
-        const h = doc.documentElement.scrollHeight;
-        if (h > 0) setHeight(h);
-      };
-
-      measure();
-
-      // Watch for layout shifts (images loading, fonts, etc.)
-      observerRef.current?.disconnect();
-      const observer = new ResizeObserver(measure);
-      observer.observe(doc.body);
-      observerRef.current = observer;
-
-      for (const img of doc.querySelectorAll("img")) {
-        if (!img.complete) {
-          img.addEventListener("load", measure);
-          img.addEventListener("error", measure);
-        }
-      }
-    } catch {
-      // Shouldn't happen with allow-same-origin
-      setHeight(300);
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => observerRef.current?.disconnect();
-  }, []);
-
+function RemoteImageBanner({ onShow }: { onShow: () => void }) {
   return (
-    <iframe
-      ref={iframeRef}
-      srcDoc={srcdoc}
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      className="email-iframe"
-      style={{ height: height > 0 ? `${height}px` : "150px" }}
-      onLoad={handleLoad}
-      title="Email content"
-    />
+    <div className="remote-images-banner" role="status">
+      <ImageIcon className="h-4 w-4 flex-shrink-0" />
+      <span className="flex-1">Images are not displayed for your privacy.</span>
+      <button type="button" className="remote-images-banner__action" onClick={onShow}>
+        Show images
+      </button>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Build a full HTML document for the iframe srcdoc
+// Sandboxed iframe
+// ---------------------------------------------------------------------------
+
+function EmailIframe({
+  html,
+  styles,
+  hasOwnBackground,
+}: {
+  html: string;
+  styles: string;
+  hasOwnBackground: boolean;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+  const [scale, setScale] = useState(1);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const cleanupListenersRef = useRef<Array<() => void>>([]);
+  const { effectiveTheme } = useTheme();
+  // Light shell when the email defines its own background, regardless of app theme.
+  const useDark = !hasOwnBackground && effectiveTheme === "dark";
+
+  const srcdoc = useMemo(
+    () => buildSrcdoc(html, styles, useDark, hasOwnBackground),
+    [html, styles, useDark, hasOwnBackground],
+  );
+
+  const measure = useCallback(() => {
+    const iframe = iframeRef.current;
+    const wrapper = wrapperRef.current;
+    if (!iframe || !wrapper) return;
+    const doc = iframe.contentDocument;
+    if (!doc?.body) return;
+
+    const contentWidth = doc.body.scrollWidth;
+    const containerWidth = wrapper.clientWidth;
+    let nextScale = 1;
+    if (containerWidth > 0 && contentWidth > containerWidth + 1) {
+      nextScale = Math.max(0.55, containerWidth / contentWidth);
+    }
+    setScale(nextScale);
+
+    const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+    if (h > 0) setHeight(Math.ceil(h * nextScale));
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument;
+    if (!doc?.body) return;
+
+    // Cleanup previous listeners.
+    cleanupListenersRef.current.forEach((fn) => fn());
+    cleanupListenersRef.current = [];
+
+    // Cap any width: 100% on the document so it can't exceed our container.
+    doc.documentElement.style.width = "100%";
+
+    measure();
+
+    // Body resize observer.
+    observerRef.current?.disconnect();
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(doc.body);
+    observerRef.current = observer;
+
+    // Image load/error — re-measure.
+    for (const img of Array.from(doc.querySelectorAll("img"))) {
+      if (img.complete) continue;
+      const onChange = () => measure();
+      img.addEventListener("load", onChange);
+      img.addEventListener("error", onChange);
+      cleanupListenersRef.current.push(() => {
+        img.removeEventListener("load", onChange);
+        img.removeEventListener("error", onChange);
+      });
+    }
+
+    // Fonts ready.
+    const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts && typeof fonts.ready?.then === "function") {
+      fonts.ready.then(() => measure()).catch(() => {});
+    }
+  }, [measure]);
+
+  // Re-measure on container resize (so scale tracks the panel width).
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(wrapper);
+    return () => ro.disconnect();
+  }, [measure]);
+
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+      cleanupListenersRef.current.forEach((fn) => fn());
+      cleanupListenersRef.current = [];
+    };
+  }, []);
+
+  return (
+    <div
+      ref={wrapperRef}
+      className={cn(
+        "email-iframe-wrapper",
+        hasOwnBackground && "email-iframe-wrapper--own-bg",
+      )}
+      style={{
+        height: height > 0 ? `${height}px` : "150px",
+      }}
+    >
+      <iframe
+        ref={iframeRef}
+        srcDoc={srcdoc}
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        className="email-iframe"
+        style={{
+          transform: scale !== 1 ? `scale(${scale})` : undefined,
+          transformOrigin: "top left",
+          width: scale !== 1 ? `${100 / scale}%` : "100%",
+          height: scale !== 1 && height > 0 ? `${height / scale}px` : "100%",
+        }}
+        onLoad={handleLoad}
+        title="Email content"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// srcdoc builder
 // ---------------------------------------------------------------------------
 
 function buildSrcdoc(
   content: string,
   styles: string,
   isDark: boolean,
+  hasOwnBackground: boolean,
 ): string {
-  const textColor = isDark ? "#e4e4e7" : "#1a1a1a";
+  const textColor = isDark ? "#e4e4e7" : "#1f2328";
   const linkColor = isDark ? "#60a5fa" : "#2563eb";
+  // When the email defines its own background, the shell must be white so
+  // hard-coded dark text on a white card stays readable in app dark mode.
+  const bg = hasOwnBackground ? "#ffffff" : "transparent";
+  const shellTextColor = hasOwnBackground ? "#1f2328" : textColor;
 
-  // Base styles: lowest specificity so the email's own CSS wins
   const baseStyles = `<style>
 html, body {
   margin: 0;
   padding: 0;
-  background: transparent;
-  color: ${textColor};
+  background: ${bg};
+  color: ${shellTextColor};
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 0.9375rem;
-  line-height: 1.7;
+  line-height: 1.6;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
+body {
+  /* leave horizontal scroll possible if needed but normally the wrapper scales */
+  overflow-x: hidden;
+}
 a { color: ${linkColor}; }
 img { max-width: 100%; height: auto; }
-pre { white-space: pre-wrap; overflow-x: auto; }
-body { overflow: hidden; }
+img[data-blocked-src] {
+  background: ${isDark ? "#23272e" : "#f1f5f9"};
+  border: 1px dashed ${isDark ? "#3f3f46" : "#cbd5e1"};
+  border-radius: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 100%;
+  display: inline-block;
+}
+pre, code {
+  white-space: pre-wrap;
+  overflow-x: auto;
+  word-break: break-word;
+}
+table { max-width: 100%; }
+blockquote {
+  margin: 0.5em 0;
+  padding-left: 12px;
+  border-left: 3px solid ${isDark ? "#3f3f46" : "#e2e8f0"};
+  color: ${isDark ? "#a1a1aa" : "#475569"};
+}
 </style>`;
 
   return [
@@ -280,7 +390,7 @@ body { overflow: hidden; }
     '<html><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
     baseStyles,
-    styles,
+    styles ? `<style>${styles}</style>` : "",
     "</head><body>",
     content,
     "</body></html>",

@@ -1,5 +1,6 @@
 import { queryOptions, QueryClient } from "@tanstack/react-query";
 import {
+  getAttachments,
   getEmailById,
   getSidebarCounts,
   getThreadEmails,
@@ -82,6 +83,15 @@ export function sidebarCountsQueryOptions() {
     queryFn: () => getSidebarCounts(),
     staleTime: SIDEBAR_COUNTS_STALE_TIME,
     gcTime: 5 * 60 * 1000,
+  });
+}
+
+export function emailAttachmentsQueryOptions(emailId: string) {
+  return queryOptions({
+    queryKey: ["email", "attachments", emailId] as const,
+    queryFn: () => getAttachments({ data: { emailId } }),
+    staleTime: EMAIL_STALE_TIME,
+    gcTime: 30 * 60 * 1000,
   });
 }
 

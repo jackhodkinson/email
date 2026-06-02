@@ -16,6 +16,7 @@ interface ThreadEmail {
   date: number;
   hasAttachments: boolean;
   isRead: boolean;
+  inlineParts?: import("@/lib/email-render").InlinePart[];
 }
 
 interface ThreadViewProps {

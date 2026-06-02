@@ -300,13 +300,38 @@ export const getEmailById = createServerFn({ method: "GET" })
     if (!stored) return null;
 
     let cached = core.getCachedBody(db, data.emailId);
+    let fetchedAttachments: Awaited<
+      ReturnType<MailCore["getEmail"]>
+    >["attachments"] | null = null;
     if (!cached) {
       const result = await core.getEmail(data.emailId);
       core.cacheBody(db, data.emailId, result.body, result.rawBody);
       cached = { bodyText: result.body, bodyRaw: result.rawBody };
+      fetchedAttachments = result.attachments;
     }
 
     const bodyHtml = isRawHtml(cached.bodyRaw) ? cached.bodyRaw : null;
+
+    // If the body has cid: references and we don't yet know the parts,
+    // fetch metadata so inline images can resolve.
+    let inlineParts: Array<{
+      attachmentId: string;
+      contentId: string | null;
+      filename: string;
+      mimeType: string;
+    }> = [];
+    if (bodyHtml && /\bsrc=["']?cid:/i.test(bodyHtml)) {
+      const atts =
+        fetchedAttachments ?? (await core.getEmail(data.emailId)).attachments;
+      inlineParts = atts
+        .filter((a) => a.isInline || a.contentId)
+        .map((a) => ({
+          attachmentId: a.attachmentId,
+          contentId: a.contentId ?? null,
+          filename: a.filename,
+          mimeType: a.mimeType,
+        }));
+    }
 
     return {
       id: stored.messageId,
@@ -322,6 +347,7 @@ export const getEmailById = createServerFn({ method: "GET" })
       labels: stored.labelIds,
       hasAttachments: stored.attachmentCount > 0,
       isRead: !stored.labelIds.includes("UNREAD"),
+      inlineParts,
     };
   });
 
@@ -339,6 +365,8 @@ export const getAttachments = createServerFn({ method: "GET" })
       filename: attachment.filename,
       mimeType: attachment.mimeType,
       size: attachment.size,
+      contentId: attachment.contentId ?? null,
+      isInline: !!attachment.isInline,
     }));
   });
 
@@ -710,22 +738,53 @@ export const getThreadEmails = createServerFn({ method: "GET" })
       labels: string[];
       hasAttachments: boolean;
       isRead: boolean;
+      inlineParts: Array<{
+        attachmentId: string;
+        contentId: string | null;
+        filename: string;
+        mimeType: string;
+      }>;
     }>;
 
     for (const row of rows) {
       let bodyText = row.body_text;
       let bodyRaw = row.body_raw;
+      let fetchedAttachments: Awaited<
+        ReturnType<MailCore["getEmail"]>
+      >["attachments"] | null = null;
 
       if (!bodyText && !bodyRaw) {
         const fetched = await core.getEmail(row.message_id);
         core.cacheBody(db, row.message_id, fetched.body, fetched.rawBody);
         bodyText = fetched.body;
         bodyRaw = fetched.rawBody;
+        fetchedAttachments = fetched.attachments;
       }
 
       const labels = row.label_ids
         ? row.label_ids.split(",").map((l) => l.trim()).filter(Boolean)
         : [];
+
+      const bodyHtml = isRawHtml(bodyRaw) ? bodyRaw : null;
+      let inlineParts: Array<{
+        attachmentId: string;
+        contentId: string | null;
+        filename: string;
+        mimeType: string;
+      }> = [];
+      if (bodyHtml && /\bsrc=["']?cid:/i.test(bodyHtml)) {
+        const atts =
+          fetchedAttachments ??
+          (await core.getEmail(row.message_id)).attachments;
+        inlineParts = atts
+          .filter((a) => a.isInline || a.contentId)
+          .map((a) => ({
+            attachmentId: a.attachmentId,
+            contentId: a.contentId ?? null,
+            filename: a.filename,
+            mimeType: a.mimeType,
+          }));
+      }
 
       result.push({
         id: row.message_id,
@@ -736,11 +795,12 @@ export const getThreadEmails = createServerFn({ method: "GET" })
         recipients: toRecipients(row.to, row.cc),
         snippet: row.snippet || null,
         bodyText: bodyText || null,
-        bodyHtml: isRawHtml(bodyRaw) ? bodyRaw : null,
+        bodyHtml,
         date: toUnixSecondsFromMs(row.internal_date),
         labels,
         hasAttachments: row.attachment_count > 0,
         isRead: !labels.includes("UNREAD"),
+        inlineParts,
       });
     }
 

@@ -1,9 +1,12 @@
 import { memo, useState, type Ref } from "react";
 import { ChevronDown, Paperclip, Reply } from "lucide-react";
+import { AttachmentsRow } from "./attachments-row";
 import { EmailContent } from "./email-content";
+import type { InlinePart } from "@/lib/email-render";
 import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/date";
+import { avatarColors } from "@/lib/avatar-color";
 
 interface ThreadMessageProps {
   email: {
@@ -16,6 +19,7 @@ interface ThreadMessageProps {
     date: number;
     hasAttachments: boolean;
     isRead: boolean;
+    inlineParts?: InlinePart[];
   };
   isExpanded?: boolean;
   isInitialFocusTarget?: boolean;
@@ -33,8 +37,12 @@ export const ThreadMessage = memo(function ThreadMessage({
   buttonRef,
 }: ThreadMessageProps) {
   const [showDetails, setShowDetails] = useState(false);
-  const { name: senderName } = parseEmailAddress(email.sender);
+  const { name: senderName, email: senderEmail } = parseEmailAddress(email.sender);
   const senderInitial = senderName.charAt(0).toUpperCase();
+  const avatarStyle = (() => {
+    const c = avatarColors((senderEmail || senderName).toLowerCase());
+    return { backgroundColor: c.bg, color: c.fg };
+  })();
   const recipientNames = email.recipients.map(
     (r) => parseEmailAddress(r).name,
   );
@@ -59,7 +67,7 @@ export const ThreadMessage = memo(function ThreadMessage({
       >
         <div className="flex items-center gap-3">
           {/* Avatar */}
-          <div className="avatar">{senderInitial}</div>
+          <div className="avatar" style={avatarStyle}>{senderInitial}</div>
 
           {/* Sender and snippet */}
           <div className="flex-1 min-w-0">
@@ -149,7 +157,16 @@ export const ThreadMessage = memo(function ThreadMessage({
       {/* Expanded content */}
       {isExpanded && (
         <div className="thread-msg__body">
-          <EmailContent bodyHtml={email.bodyHtml} bodyText={email.bodyText} />
+          <EmailContent
+            emailId={email.id}
+            bodyHtml={email.bodyHtml}
+            bodyText={email.bodyText}
+            inlineParts={email.inlineParts}
+          />
+          <AttachmentsRow
+            emailId={email.id}
+            hasAttachments={email.hasAttachments}
+          />
         </div>
       )}
     </div>
