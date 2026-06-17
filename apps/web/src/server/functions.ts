@@ -921,6 +921,7 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
     }
 
     const db = core.getDb();
+    console.log(`[archive] request thread=${data.threadId}`);
 
     // Update the local cache before the network call. The UI has already hidden
     // the thread optimistically; doing the DB change first keeps a page refresh
@@ -928,7 +929,9 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
     core.removeThreadLabels(db, data.threadId, ["INBOX"]);
     try {
       await core.removeThreadFromInbox(data.threadId);
+      console.log(`[archive] success thread=${data.threadId}`);
     } catch (error) {
+      console.error(`[archive] failed thread=${data.threadId}`, error);
       core.addThreadLabels(db, data.threadId, ["INBOX"]);
       throw error;
     }

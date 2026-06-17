@@ -339,7 +339,13 @@ function InboxPage() {
           return { messageId, threadId: thread.threadId, labels: thread.labels };
         })
         .filter(Boolean) as ArchivedThreadSnapshot[];
-      if (batch.length === 0) return;
+      if (batch.length === 0) {
+        console.error("Archive requested but no visible thread matched", {
+          messageIds,
+          visibleThreadIds: visibleThreads.map((thread) => thread.id),
+        });
+        return;
+      }
 
       const threadIds = Array.from(new Set(batch.map((item) => item.threadId)));
       addPendingArchiveThreadIds(threadIds);
