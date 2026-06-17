@@ -920,9 +920,18 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
       throw new Error("Not authenticated. Run 'cmail auth' first.");
     }
 
-    await core.removeThreadFromInbox(data.threadId);
     const db = core.getDb();
+
+    // Update the local cache before the network call. The UI has already hidden
+    // the thread optimistically; doing the DB change first keeps a page refresh
+    // from resurrecting the row while Gmail is still processing the archive.
     core.removeThreadLabels(db, data.threadId, ["INBOX"]);
+    try {
+      await core.removeThreadFromInbox(data.threadId);
+    } catch (error) {
+      core.addThreadLabels(db, data.threadId, ["INBOX"]);
+      throw error;
+    }
 
     return { success: true };
   });
@@ -936,9 +945,15 @@ export const addToInboxAction = createServerFn({ method: "POST" })
       throw new Error("Not authenticated. Run 'cmail auth' first.");
     }
 
-    await core.addThreadToInbox(data.threadId);
     const db = core.getDb();
+
     core.addThreadLabels(db, data.threadId, ["INBOX"]);
+    try {
+      await core.addThreadToInbox(data.threadId);
+    } catch (error) {
+      core.removeThreadLabels(db, data.threadId, ["INBOX"]);
+      throw error;
+    }
 
     return { success: true };
   });

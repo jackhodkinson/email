@@ -108,6 +108,10 @@ function authCheck(req: Request): Response | null {
 Bun.serve({
   port,
   hostname,
+  // Gmail mutations can occasionally take longer than Bun's 10s default. If a
+  // request times out, the client keeps its optimistic archive while refreshes
+  // read stale DB state, which looks like archive did not persist.
+  idleTimeout: 60,
   async fetch(req: Request): Promise<Response> {
     const denied = authCheck(req);
     if (denied) return denied;
