@@ -1,4 +1,4 @@
-import { forwardRef, memo, useCallback, useRef, useState } from "react";
+import { forwardRef, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,8 +13,35 @@ import {
 } from "@/components/ui/context-menu";
 
 // Swipe-to-archive (touch only)
-const SWIPE_TRIGGER_PX = 96;
-const SWIPE_DIRECTION_LOCK_PX = 8;
+//
+// The important UX detail here is axis intent: a mailbox list is primarily a
+// vertical scroller, so we only steal the pointer after the user has made a
+// clearly leftward, mostly-horizontal gesture.  Once locked, translation starts
+// from the lock point instead of the original touch-down point; this avoids the
+// small but perceptible "jump" that happens when a delayed gesture suddenly
+// catches up to the finger.
+const SWIPE_INTENT_PX = 18;
+const SWIPE_VERTICAL_CANCEL_PX = 10;
+const SWIPE_HORIZONTAL_DOMINANCE = 1.35;
+const SWIPE_FAST_VELOCITY_PX_PER_MS = 0.9;
+const SWIPE_MAX_OFFSET_PX = 280;
+const SWIPE_ARCHIVE_ANIMATION_MS = 180;
+
+function getSwipeTriggerPx(width: number): number {
+  // Far enough to feel intentional on phones, but not absurdly far on tablets.
+  return Math.min(220, Math.max(144, width * 0.45));
+}
+
+function easeSwipeOffset(distance: number, trigger: number): number {
+  if (distance <= trigger) return distance;
+
+  // Rubber-band beyond the trigger: keep moving with the finger, but slow down
+  // so the row feels anchored instead of slippery.
+  const extra = distance - trigger;
+  return Math.min(SWIPE_MAX_OFFSET_PX, trigger + extra * 0.35);
+}
+
+type SwipePhase = "idle" | "tracking" | "dragging" | "committing";
 
 interface EmailItemProps {
   id: string;
@@ -60,53 +87,96 @@ export const EmailItem = memo(
     ref,
   ) {
     const [swipeX, setSwipeX] = useState(0);
-    const [animateBack, setAnimateBack] = useState(false);
+    const [swipePhase, setSwipePhase] = useState<SwipePhase>("idle");
+    const [swipeTriggerPx, setSwipeTriggerPx] = useState(Number.POSITIVE_INFINITY);
     const swipeStateRef = useRef<{
       startX: number;
       startY: number;
-      active: boolean;
+      lockX: number;
+      lastX: number;
+      lastTime: number;
+      velocityX: number;
+      triggerPx: number;
       pointerId: number;
+      phase: Exclude<SwipePhase, "idle" | "committing">;
     } | null>(null);
+    const archiveTimerRef = useRef<number | null>(null);
     const suppressClickRef = useRef(false);
+
+    useEffect(() => {
+      return () => {
+        if (archiveTimerRef.current !== null) {
+          window.clearTimeout(archiveTimerRef.current);
+        }
+      };
+    }, []);
 
     const onPointerDown = useCallback(
       (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (!onArchive || e.pointerType !== "touch") return;
+        if (!onArchive || e.pointerType !== "touch" || swipePhase === "committing") return;
+        if (archiveTimerRef.current !== null) {
+          window.clearTimeout(archiveTimerRef.current);
+          archiveTimerRef.current = null;
+        }
+        const width = e.currentTarget.getBoundingClientRect().width || window.innerWidth;
+        const triggerPx = getSwipeTriggerPx(width);
+        setSwipeTriggerPx(triggerPx);
         swipeStateRef.current = {
           startX: e.clientX,
           startY: e.clientY,
-          active: false,
+          lockX: e.clientX,
+          lastX: e.clientX,
+          lastTime: e.timeStamp,
+          velocityX: 0,
+          triggerPx,
           pointerId: e.pointerId,
+          phase: "tracking",
         };
-        setAnimateBack(false);
+        setSwipePhase("tracking");
       },
-      [onArchive],
+      [onArchive, swipePhase],
     );
 
     const onPointerMove = useCallback(
       (e: ReactPointerEvent<HTMLDivElement>) => {
         const state = swipeStateRef.current;
         if (!state || state.pointerId !== e.pointerId) return;
+
         const dx = e.clientX - state.startX;
         const dy = e.clientY - state.startY;
-        if (!state.active) {
-          // Lock direction: only horizontal swipes engage; let vertical scroll pass.
-          if (Math.abs(dy) > SWIPE_DIRECTION_LOCK_PX && Math.abs(dy) > Math.abs(dx)) {
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        const dt = Math.max(1, e.timeStamp - state.lastTime);
+        state.velocityX = (e.clientX - state.lastX) / dt;
+        state.lastX = e.clientX;
+        state.lastTime = e.timeStamp;
+
+        if (state.phase === "tracking") {
+          // Vertical-first movement is scroll, not archive. Requiring horizontal
+          // dominance makes accidental diagonal pull-to-scroll gestures harmless.
+          if (absDy >= SWIPE_VERTICAL_CANCEL_PX && absDy > absDx / SWIPE_HORIZONTAL_DOMINANCE) {
             swipeStateRef.current = null;
+            setSwipeTriggerPx(Number.POSITIVE_INFINITY);
+            setSwipePhase("idle");
             return;
           }
-          if (Math.abs(dx) > SWIPE_DIRECTION_LOCK_PX) {
-            state.active = true;
-            try {
-              (e.currentTarget as Element).setPointerCapture(e.pointerId);
-            } catch {}
-          } else {
-            return;
-          }
+
+          const hasHorizontalIntent =
+            dx <= -SWIPE_INTENT_PX && absDx >= absDy * SWIPE_HORIZONTAL_DOMINANCE;
+          if (!hasHorizontalIntent) return;
+
+          state.phase = "dragging";
+          state.lockX = e.clientX;
+          suppressClickRef.current = true;
+          setSwipePhase("dragging");
+          try {
+            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+          } catch {}
+          return;
         }
-        // Only allow swipe-left.
-        const clamped = Math.min(0, dx);
-        setSwipeX(clamped);
+
+        const distance = Math.max(0, state.lockX - e.clientX);
+        setSwipeX(-easeSwipeOffset(distance, state.triggerPx));
         e.preventDefault();
       },
       [],
@@ -117,15 +187,26 @@ export const EmailItem = memo(
         const state = swipeStateRef.current;
         swipeStateRef.current = null;
         if (!state) return;
-        if (state.active) suppressClickRef.current = true;
-        if (commit && state.active && onArchive) {
-          // Slide all the way out, then archive.
-          setAnimateBack(true);
-          setSwipeX(-window.innerWidth);
-          window.setTimeout(() => onArchive(id.replace(/^email-/, "")), 180);
+
+        if (state.phase !== "dragging") {
+          setSwipeTriggerPx(Number.POSITIVE_INFINITY);
+          setSwipePhase("idle");
           return;
         }
-        setAnimateBack(true);
+
+        if (commit && onArchive) {
+          setSwipeTriggerPx(0);
+          setSwipePhase("committing");
+          setSwipeX(-window.innerWidth);
+          archiveTimerRef.current = window.setTimeout(() => {
+            archiveTimerRef.current = null;
+            onArchive(id.replace(/^email-/, ""));
+          }, SWIPE_ARCHIVE_ANIMATION_MS);
+          return;
+        }
+
+        setSwipeTriggerPx(Number.POSITIVE_INFINITY);
+        setSwipePhase("idle");
         setSwipeX(0);
       },
       [id, onArchive],
@@ -135,8 +216,11 @@ export const EmailItem = memo(
       (e: ReactPointerEvent<HTMLDivElement>) => {
         const state = swipeStateRef.current;
         if (!state || state.pointerId !== e.pointerId) return;
-        const dx = e.clientX - state.startX;
-        finishSwipe(state.active && dx <= -SWIPE_TRIGGER_PX);
+        const distance = state.phase === "dragging" ? Math.max(0, state.lockX - e.clientX) : 0;
+        const passedTrigger = distance >= state.triggerPx;
+        const strongFling =
+          distance >= state.triggerPx * 0.6 && state.velocityX <= -SWIPE_FAST_VELOCITY_PX_PER_MS;
+        finishSwipe(passedTrigger || strongFling);
       },
       [finishSwipe],
     );
@@ -149,8 +233,9 @@ export const EmailItem = memo(
       }
     }, []);
 
-    const swiping = swipeX < 0;
-    const triggered = swipeX <= -SWIPE_TRIGGER_PX;
+    const swiping = swipePhase === "dragging" || swipePhase === "committing" || swipeX < 0;
+    const triggered = swipePhase === "committing" || Math.abs(swipeX) >= swipeTriggerPx;
+    const settling = swipePhase === "idle" || swipePhase === "committing";
 
     const content = (
       <div
@@ -181,7 +266,7 @@ export const EmailItem = memo(
         )}
         style={{
           transform: swipeX ? `translate3d(${swipeX}px,0,0)` : undefined,
-          transition: animateBack ? "transform 180ms ease-out" : undefined,
+          transition: settling ? `transform ${SWIPE_ARCHIVE_ANIMATION_MS}ms ease-out` : undefined,
         }}
         onClick={() => onSelectEmail?.(email.id)}
         onMouseEnter={() => onHoverEmail?.(email.id)}
