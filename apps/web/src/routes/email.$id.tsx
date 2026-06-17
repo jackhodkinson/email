@@ -18,6 +18,11 @@ import {
   prefetchAdjacent,
   prefetchEmailDetail,
 } from "../lib/query";
+import {
+  addPendingArchiveThreadIds,
+  getPendingArchiveThreadIds,
+  removePendingArchiveThreadIds,
+} from "../lib/pending-archive";
 import { useMutation } from "@tanstack/react-query";
 
 type SidebarCounts = {
@@ -201,7 +206,9 @@ function EmailDetailPage() {
   // Keyed by threadId (not messageId) because the inbox list is thread-based —
   // after archiving one message, a different message in the same thread could
   // become the new representative, which would bypass a messageId-based filter.
-  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(() => new Set());
+  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(
+    () => new Set(getPendingArchiveThreadIds()),
+  );
   const visibleThreads = useMemo(
     () =>
       archivedThreadIds.size === 0
@@ -288,10 +295,31 @@ function EmailDetailPage() {
     mutationFn: async (vars: { threadId: string }) => {
       return await removeFromInboxAction({ data: vars });
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      removePendingArchiveThreadIds([vars.threadId]);
+      reconcileSidebarCounts();
+    },
+    onError: (error, vars) => {
+      console.error("Failed to archive thread", vars.threadId, error);
+      removePendingArchiveThreadIds([vars.threadId]);
+      setArchivedThreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(vars.threadId);
+        return next;
+      });
       reconcileSidebarCounts();
     },
   });
+
+  const replayedPendingArchivesRef = useRef(false);
+  useEffect(() => {
+    if (replayedPendingArchivesRef.current) return;
+    replayedPendingArchivesRef.current = true;
+
+    for (const threadId of getPendingArchiveThreadIds()) {
+      archiveMutation.mutate({ threadId });
+    }
+  }, [archiveMutation]);
 
   const unarchiveMutation = useMutation({
     mutationFn: async (vars: { threadId: string }) => {
@@ -316,6 +344,7 @@ function EmailDetailPage() {
       if (batch.length === 0) return;
 
       const archivedThreadIds = Array.from(new Set(batch.map((item) => item.threadId)));
+      addPendingArchiveThreadIds(archivedThreadIds);
       lastArchivedRef.current = batch;
       setArchivedThreadIds((prev) => {
         const next = new Set(prev);
@@ -371,6 +400,7 @@ function EmailDetailPage() {
 
     lastArchivedRef.current = null;
     const threadIds = Array.from(new Set(lastBatch.map((item) => item.threadId)));
+    removePendingArchiveThreadIds(threadIds);
     setArchivedThreadIds((prev) => {
       const next = new Set(prev);
       for (const threadId of threadIds) {

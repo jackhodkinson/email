@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,6 +17,11 @@ import {
   prefetchBatch,
   prefetchEmailDetail,
 } from "../lib/query";
+import {
+  addPendingArchiveThreadIds,
+  getPendingArchiveThreadIds,
+  removePendingArchiveThreadIds,
+} from "../lib/pending-archive";
 
 type SidebarCounts = {
   inbox: number;
@@ -131,7 +136,9 @@ function InboxPage() {
   const router = useRouter();
   const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
-  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(() => new Set());
+  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(
+    () => new Set(getPendingArchiveThreadIds()),
+  );
   const visibleThreads = useMemo(
     () =>
       archivedThreadIds.size === 0
@@ -211,12 +218,33 @@ function InboxPage() {
     mutationFn: async (vars: { threadId: string }) => {
       return await removeFromInboxAction({ data: vars });
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
+      removePendingArchiveThreadIds([vars.threadId]);
       reconcileSidebarCounts();
       await queryClient.invalidateQueries({ queryKey: ["email", "inbox"] });
       await router.invalidate();
     },
+    onError: (error, vars) => {
+      console.error("Failed to archive thread", vars.threadId, error);
+      removePendingArchiveThreadIds([vars.threadId]);
+      setArchivedThreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(vars.threadId);
+        return next;
+      });
+      reconcileSidebarCounts();
+    },
   });
+
+  const replayedPendingArchivesRef = useRef(false);
+  useEffect(() => {
+    if (replayedPendingArchivesRef.current) return;
+    replayedPendingArchivesRef.current = true;
+
+    for (const threadId of getPendingArchiveThreadIds()) {
+      archiveMutation.mutate({ threadId });
+    }
+  }, [archiveMutation]);
 
   const unarchiveMutation = useMutation({
     mutationFn: async (vars: { threadId: string }) => {
@@ -292,6 +320,7 @@ function InboxPage() {
       if (batch.length === 0) return;
 
       const threadIds = Array.from(new Set(batch.map((item) => item.threadId)));
+      addPendingArchiveThreadIds(threadIds);
       lastArchivedRef.current = batch;
       setArchivedThreadIds((prev) => {
         const next = new Set(prev);
@@ -329,6 +358,7 @@ function InboxPage() {
 
     lastArchivedRef.current = null;
     const threadIds = Array.from(new Set(lastBatch.map((item) => item.threadId)));
+    removePendingArchiveThreadIds(threadIds);
     setArchivedThreadIds((prev) => {
       const next = new Set(prev);
       for (const threadId of threadIds) {
