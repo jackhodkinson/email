@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { assertAuthenticated, withGmail, withGmailMutation } from "./gmail-client";
 
 type MailCore = typeof import("@jack/mail-core");
 
@@ -74,7 +75,7 @@ async function getAccountInfo(core: MailCore) {
     };
   }
 
-  const profile = await core.getProfile();
+  const profile = await withGmail("get profile", () => core.getProfile());
   core.setSyncState(db, {
     emailAddress: profile.emailAddress,
     historyId: profile.historyId,
@@ -188,15 +189,13 @@ export const syncAccount = createServerFn({ method: "POST" })
   .handler(async () => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
     const db = core.getDb();
     const state = core.getSyncState(db);
 
     if (!state.initialSyncDone) {
-      await core.initialSync(db);
+      await withGmail("initial sync", () => core.initialSync(db));
       const nextState = core.getSyncState(db);
       return {
         emailCount: 0,
@@ -204,7 +203,7 @@ export const syncAccount = createServerFn({ method: "POST" })
       };
     }
 
-    await core.incrementalSync(db);
+    await withGmail("incremental sync", () => core.incrementalSync(db));
     const nextState = core.getSyncState(db);
     return {
       emailCount: 0,
@@ -304,7 +303,7 @@ export const getEmailById = createServerFn({ method: "GET" })
       ReturnType<MailCore["getEmail"]>
     >["attachments"] | null = null;
     if (!cached) {
-      const result = await core.getEmail(data.emailId);
+      const result = await withGmail("get email", () => core.getEmail(data.emailId));
       core.cacheBody(db, data.emailId, result.body, result.rawBody);
       cached = { bodyText: result.body, bodyRaw: result.rawBody };
       fetchedAttachments = result.attachments;
@@ -322,7 +321,7 @@ export const getEmailById = createServerFn({ method: "GET" })
     }> = [];
     if (bodyHtml && /\bsrc=["']?cid:/i.test(bodyHtml)) {
       const atts =
-        fetchedAttachments ?? (await core.getEmail(data.emailId)).attachments;
+        fetchedAttachments ?? (await withGmail("get email attachments", () => core.getEmail(data.emailId))).attachments;
       inlineParts = atts
         .filter((a) => a.isInline || a.contentId)
         .map((a) => ({
@@ -358,7 +357,7 @@ export const getAttachments = createServerFn({ method: "GET" })
     const isReady = hasLocalMailbox(core);
     if (!isReady) return [];
 
-    const result = await core.getEmail(data.emailId);
+    const result = await withGmail("get attachment metadata", () => core.getEmail(data.emailId));
     return result.attachments.map((attachment) => ({
       id: attachment.attachmentId,
       emailId: data.emailId,
@@ -634,11 +633,9 @@ export const createLabelAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
-    const created = await core.createLabel(data.name.trim());
+    const created = await withGmail("create label", () => core.createLabel(data.name.trim()));
     const db = core.getDb();
     core.upsertLabels(db, [{ id: created.id, name: created.name, type: "user" }]);
 
@@ -650,11 +647,9 @@ export const updateLabelAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
-    const updated = await core.updateLabel(data.labelId, data.name.trim());
+    const updated = await withGmail("update label", () => core.updateLabel(data.labelId, data.name.trim()));
     const db = core.getDb();
     core.updateStoredLabel(db, updated.id, updated.name);
 
@@ -666,11 +661,9 @@ export const deleteLabelAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
-    await core.deleteLabel(data.labelId);
+    await withGmail("delete label", () => core.deleteLabel(data.labelId));
     const db = core.getDb();
     core.deleteStoredLabel(db, data.labelId);
 
@@ -754,7 +747,7 @@ export const getThreadEmails = createServerFn({ method: "GET" })
       >["attachments"] | null = null;
 
       if (!bodyText && !bodyRaw) {
-        const fetched = await core.getEmail(row.message_id);
+        const fetched = await withGmail("get thread email", () => core.getEmail(row.message_id));
         core.cacheBody(db, row.message_id, fetched.body, fetched.rawBody);
         bodyText = fetched.body;
         bodyRaw = fetched.rawBody;
@@ -775,7 +768,7 @@ export const getThreadEmails = createServerFn({ method: "GET" })
       if (bodyHtml && /\bsrc=["']?cid:/i.test(bodyHtml)) {
         const atts =
           fetchedAttachments ??
-          (await core.getEmail(row.message_id)).attachments;
+          (await withGmail("get thread email attachments", () => core.getEmail(row.message_id))).attachments;
         inlineParts = atts
           .filter((a) => a.isInline || a.contentId)
           .map((a) => ({
@@ -821,27 +814,25 @@ export const createDraftAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
     if (data.replyToMessageId) {
-      const result = await core.createReplyDraft({
+      const result = await withGmail("create reply draft", () => core.createReplyDraft({
         messageId: data.replyToMessageId,
         body: data.body,
         cc: data.cc,
         bcc: data.bcc,
-      });
+      }));
       return { id: result.id, messageId: result.messageId, threadId: result.threadId };
     }
 
-    const result = await core.createDraft({
+    const result = await withGmail("create draft", () => core.createDraft({
       to: data.to,
       cc: data.cc,
       bcc: data.bcc,
       subject: data.subject,
       body: data.body,
-    });
+    }));
     return { id: result.id, messageId: result.messageId, threadId: result.threadId };
   });
 
@@ -859,30 +850,28 @@ export const sendEmailAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
     if (data.replyToMessageId) {
-      const result = await core.sendReply({
+      const result = await withGmail("send reply", () => core.sendReply({
         messageId: data.replyToMessageId,
         body: data.body,
         cc: data.cc,
         bcc: data.bcc,
-      });
+      }));
       if (result.messageId) {
         void persistSentMessage(core, result.messageId);
       }
       return { messageId: result.messageId, threadId: result.threadId };
     }
 
-    const result = await core.sendMessage({
+    const result = await withGmail("send message", () => core.sendMessage({
       to: data.to,
       cc: data.cc,
       bcc: data.bcc,
       subject: data.subject,
       body: data.body,
-    });
+    }));
     if (result.messageId) {
       void persistSentMessage(core, result.messageId);
     }
@@ -894,17 +883,15 @@ export const setReadStatus = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
     const db = core.getDb();
 
     if (data.isRead) {
-      await core.markAsRead(data.messageId);
+      await withGmail("mark as read", () => core.markAsRead(data.messageId));
       core.removeLabels(db, data.messageId, ["UNREAD"]);
     } else {
-      await core.markAsUnread(data.messageId);
+      await withGmail("mark as unread", () => core.markAsUnread(data.messageId));
       core.addLabels(db, data.messageId, ["UNREAD"]);
     }
 
@@ -916,9 +903,7 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
     const db = core.getDb();
     console.log(`[archive] request thread=${data.threadId}`);
@@ -926,53 +911,33 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
     // Update the local cache before the network call. The UI has already hidden
     // the thread optimistically; doing the DB change first keeps a page refresh
     // from resurrecting the row while Gmail is still processing the archive.
-    core.removeThreadLabels(db, data.threadId, ["INBOX"]);
-    try {
-      await core.removeThreadFromInbox(data.threadId);
-      console.log(`[archive] success thread=${data.threadId}`);
-    } catch (error) {
-      console.error(`[archive] failed thread=${data.threadId}`, error);
-      core.addThreadLabels(db, data.threadId, ["INBOX"]);
-      if (isGoogleAuthError(error)) {
-        throw new Error("AUTH_REQUIRED: Gmail authorization expired. Please reconnect Google.");
-      }
-      throw error;
-    }
+    await withGmailMutation({
+      operation: `archive thread ${data.threadId}`,
+      applyLocal: () => core.removeThreadLabels(db, data.threadId, ["INBOX"]),
+      rollbackLocal: () => core.addThreadLabels(db, data.threadId, ["INBOX"]),
+      remote: () => core.removeThreadFromInbox(data.threadId),
+    });
+    console.log(`[archive] success thread=${data.threadId}`);
 
     return { success: true };
   });
 
-
-function isGoogleAuthError(error: unknown): boolean {
-  const err = error as { message?: unknown; code?: unknown; status?: unknown; response?: { status?: unknown } };
-  const message = String(err?.message ?? error ?? "");
-  return (
-    message.includes("invalid_grant") ||
-    message.includes("invalid_token") ||
-    err?.code === 401 ||
-    err?.status === 401 ||
-    err?.response?.status === 401
-  );
-}
 
 export const addToInboxAction = createServerFn({ method: "POST" })
   .inputValidator((data: { threadId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
     const db = core.getDb();
 
-    core.addThreadLabels(db, data.threadId, ["INBOX"]);
-    try {
-      await core.addThreadToInbox(data.threadId);
-    } catch (error) {
-      core.removeThreadLabels(db, data.threadId, ["INBOX"]);
-      throw error;
-    }
+    await withGmailMutation({
+      operation: `unarchive thread ${data.threadId}`,
+      applyLocal: () => core.addThreadLabels(db, data.threadId, ["INBOX"]),
+      rollbackLocal: () => core.removeThreadLabels(db, data.threadId, ["INBOX"]),
+      remote: () => core.addThreadToInbox(data.threadId),
+    });
 
     return { success: true };
   });
@@ -984,11 +949,9 @@ export const setThreadLabelsAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const core = await getCore();
 
-    if (!core.isAuthenticated()) {
-      throw new Error("Not authenticated. Run 'cmail auth' first.");
-    }
+    assertAuthenticated(core);
 
-    await core.modifyThreadLabels(data.threadId, data.addLabelIds, data.removeLabelIds);
+    await withGmail("modify thread labels", () => core.modifyThreadLabels(data.threadId, data.addLabelIds, data.removeLabelIds));
     const db = core.getDb();
 
     if (data.addLabelIds.length > 0) {
@@ -1033,8 +996,8 @@ export const downloadAttachment = createServerFn({ method: "GET" })
   .inputValidator((data: { emailId: string; attachmentId: string }) => data)
   .handler(async ({ data }) => {
     const core = await getCore();
-    const file = await core.downloadAttachment(data.emailId, data.attachmentId);
-    const attachmentMeta = (await core.getEmail(data.emailId)).attachments.find(
+    const file = await withGmail("download attachment", () => core.downloadAttachment(data.emailId, data.attachmentId));
+    const attachmentMeta = (await withGmail("get attachment metadata", () => core.getEmail(data.emailId))).attachments.find(
       (a) => a.attachmentId === data.attachmentId,
     );
 

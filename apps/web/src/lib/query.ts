@@ -1,4 +1,5 @@
 import { queryOptions, QueryClient } from "@tanstack/react-query";
+import { isAuthError, notifyAuthError } from "./auth-error";
 import {
   getAttachments,
   getEmailById,
@@ -186,6 +187,15 @@ export function getQueryClient() {
       defaultOptions: {
         queries: {
           staleTime: EMAIL_STALE_TIME,
+          retry: (failureCount, error) => !isAuthError(error) && failureCount < 3,
+        },
+        mutations: {
+          retry: false,
+          onError: (error) => {
+            if (isAuthError(error)) {
+              notifyAuthError();
+            }
+          },
         },
       },
     });
