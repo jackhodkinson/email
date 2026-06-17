@@ -9,6 +9,7 @@ import {
 import { ComposeSheet } from "../components/compose-sheet";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
+import { AuthRequiredBanner } from "../components/auth-required-banner";
 import { useSearchBox } from "../lib/search-context";
 import {
   inboxQueryOptions,
@@ -23,6 +24,7 @@ import {
   getPendingArchiveThreadIds,
   removePendingArchiveThreadIds,
 } from "../lib/pending-archive";
+import { isAuthError, notifyAuthError } from "../lib/auth-error";
 import { useMutation } from "@tanstack/react-query";
 
 type SidebarCounts = {
@@ -322,6 +324,9 @@ function EmailDetailPage() {
     },
     onError: (error, vars) => {
       console.error("Failed to archive thread", vars.threadId, error);
+      if (isAuthError(error)) {
+        notifyAuthError();
+      }
       removePendingArchiveThreadIds([vars.threadId]);
       setArchivedThreadIds((prev) => {
         const next = new Set(prev);
@@ -642,6 +647,7 @@ function EmailDetailPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      <AuthRequiredBanner />
       <main className="flex-1 min-h-0 overflow-hidden">
         <EmailSplitView
           emails={visibleThreads}

@@ -933,11 +933,27 @@ export const removeFromInboxAction = createServerFn({ method: "POST" })
     } catch (error) {
       console.error(`[archive] failed thread=${data.threadId}`, error);
       core.addThreadLabels(db, data.threadId, ["INBOX"]);
+      if (isGoogleAuthError(error)) {
+        throw new Error("AUTH_REQUIRED: Gmail authorization expired. Please reconnect Google.");
+      }
       throw error;
     }
 
     return { success: true };
   });
+
+
+function isGoogleAuthError(error: unknown): boolean {
+  const err = error as { message?: unknown; code?: unknown; status?: unknown; response?: { status?: unknown } };
+  const message = String(err?.message ?? error ?? "");
+  return (
+    message.includes("invalid_grant") ||
+    message.includes("invalid_token") ||
+    err?.code === 401 ||
+    err?.status === 401 ||
+    err?.response?.status === 401
+  );
+}
 
 export const addToInboxAction = createServerFn({ method: "POST" })
   .inputValidator((data: { threadId: string }) => data)

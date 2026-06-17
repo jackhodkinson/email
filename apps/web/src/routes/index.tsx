@@ -11,6 +11,7 @@ import { inboxQueryOptions } from "../lib/query";
 import { ComposeSheet } from "../components/compose-sheet";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
+import { AuthRequiredBanner } from "../components/auth-required-banner";
 import { useSearchBox } from "../lib/search-context";
 import {
   getQueryClient,
@@ -22,6 +23,7 @@ import {
   getPendingArchiveThreadIds,
   removePendingArchiveThreadIds,
 } from "../lib/pending-archive";
+import { isAuthError, notifyAuthError } from "../lib/auth-error";
 
 type SidebarCounts = {
   inbox: number;
@@ -248,6 +250,9 @@ function InboxPage() {
     },
     onError: (error, vars) => {
       console.error("Failed to archive thread", vars.threadId, error);
+      if (isAuthError(error)) {
+        notifyAuthError();
+      }
       removePendingArchiveThreadIds([vars.threadId]);
       setArchivedThreadIds((prev) => {
         const next = new Set(prev);
@@ -470,6 +475,7 @@ function InboxPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      <AuthRequiredBanner />
       <main className="flex flex-1 min-h-0">
         <EmailSplitView
           emails={visibleThreads}
