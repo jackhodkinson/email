@@ -1,4 +1,4 @@
-import { queryOptions, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, queryOptions, QueryClient } from "@tanstack/react-query";
 import { isAuthError, notifyAuthError } from "./auth-error";
 import {
   getAttachments,
@@ -184,6 +184,16 @@ let queryClient: QueryClient | undefined;
 export function getQueryClient() {
   if (!queryClient) {
     queryClient = new QueryClient({
+      queryCache: new QueryCache({
+        onError: (error) => {
+          if (isAuthError(error)) notifyAuthError();
+        },
+      }),
+      mutationCache: new MutationCache({
+        onError: (error) => {
+          if (isAuthError(error)) notifyAuthError();
+        },
+      }),
       defaultOptions: {
         queries: {
           staleTime: EMAIL_STALE_TIME,
@@ -191,11 +201,6 @@ export function getQueryClient() {
         },
         mutations: {
           retry: false,
-          onError: (error) => {
-            if (isAuthError(error)) {
-              notifyAuthError();
-            }
-          },
         },
       },
     });

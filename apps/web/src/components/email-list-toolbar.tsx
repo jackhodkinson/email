@@ -7,6 +7,7 @@ import {
   getActiveMailViewId,
 } from "@/lib/mail-views";
 import { userLabelsQueryOptions } from "@/lib/query";
+import { isAuthError, notifyAuthError } from "@/lib/auth-error";
 import { Menu, MessagesSquare, RefreshCw, Search, SquarePen } from "lucide-react";
 import { syncAccount } from "../server/functions";
 import { Button } from "./ui/button";
@@ -83,6 +84,11 @@ export function EmailListToolbar({
       // /email/$id loader actually refetches instead of returning stale data.
       await queryClient.invalidateQueries({ queryKey: ["email", "inbox"] });
       await router.invalidate();
+    } catch (error) {
+      if (isAuthError(error)) {
+        notifyAuthError();
+      }
+      console.error("Failed to refresh mail", error);
     } finally {
       syncing$.set(false);
     }
