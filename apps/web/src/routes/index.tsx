@@ -146,6 +146,26 @@ function InboxPage() {
         : threads.filter((thread) => !archivedThreadIds.has(thread.threadId)),
     [archivedThreadIds, threads],
   );
+
+  useEffect(() => {
+    if (archivedThreadIds.size === 0) return;
+
+    const loadedThreadIds = new Set(threads.map((thread) => thread.threadId));
+    const confirmedArchived = [...archivedThreadIds].filter(
+      (threadId) => !loadedThreadIds.has(threadId),
+    );
+    if (confirmedArchived.length === 0) return;
+
+    removePendingArchiveThreadIds(confirmedArchived);
+    setArchivedThreadIds((prev) => {
+      const next = new Set(prev);
+      for (const threadId of confirmedArchived) {
+        next.delete(threadId);
+      }
+      return next;
+    });
+  }, [archivedThreadIds, threads]);
+
   const lastArchivedRef = useRef<ArchivedThreadSnapshot[] | null>(null);
   const applyOptimisticSidebarDelta = useCallback(
     (entries: ArchivedThreadSnapshot[], direction: 1 | -1) => {
@@ -218,8 +238,10 @@ function InboxPage() {
     mutationFn: async (vars: { threadId: string }) => {
       return await removeFromInboxAction({ data: vars });
     },
-    onSuccess: async (_data, vars) => {
-      removePendingArchiveThreadIds([vars.threadId]);
+    onSuccess: async () => {
+      // Keep the thread in the pending-archive filter until a refetched list no
+      // longer contains it. Clearing here can race with stale loader/query data
+      // and make the row visibly pop back in after a successful archive.
       reconcileSidebarCounts();
       await queryClient.invalidateQueries({ queryKey: ["email", "inbox"] });
       await router.invalidate();

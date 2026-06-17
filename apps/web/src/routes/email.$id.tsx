@@ -216,6 +216,26 @@ function EmailDetailPage() {
         : displayThreads.filter((t) => !archivedThreadIds.has(t.threadId)),
     [displayThreads, archivedThreadIds],
   );
+
+  useEffect(() => {
+    if (archivedThreadIds.size === 0) return;
+
+    const loadedThreadIds = new Set(displayThreads.map((thread) => thread.threadId));
+    const confirmedArchived = [...archivedThreadIds].filter(
+      (threadId) => !loadedThreadIds.has(threadId),
+    );
+    if (confirmedArchived.length === 0) return;
+
+    removePendingArchiveThreadIds(confirmedArchived);
+    setArchivedThreadIds((prev) => {
+      const next = new Set(prev);
+      for (const threadId of confirmedArchived) {
+        next.delete(threadId);
+      }
+      return next;
+    });
+  }, [archivedThreadIds, displayThreads]);
+
   const selectedThreadStillVisible = useMemo(
     () => visibleThreads.some((thread) => thread.id === selectedId),
     [selectedId, visibleThreads],
@@ -295,8 +315,9 @@ function EmailDetailPage() {
     mutationFn: async (vars: { threadId: string }) => {
       return await removeFromInboxAction({ data: vars });
     },
-    onSuccess: (_data, vars) => {
-      removePendingArchiveThreadIds([vars.threadId]);
+    onSuccess: () => {
+      // Keep the thread in the pending-archive filter until refreshed inbox data
+      // proves it is gone; otherwise route/query refreshes can resurrect stale rows.
       reconcileSidebarCounts();
     },
     onError: (error, vars) => {
