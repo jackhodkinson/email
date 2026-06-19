@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
@@ -111,6 +111,23 @@ function isFocusableElement(el: HTMLElement | null): boolean {
 const noop = () => {};
 const LIST_SURFACE_ID = "mail-list";
 const VIEWER_SURFACE_ID = "mail-viewer";
+const SINGLE_PANE_BREAKPOINT = 1024;
+
+function useIsSinglePane() {
+  const [isSinglePane, setIsSinglePane] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(
+      `(max-width: ${SINGLE_PANE_BREAKPOINT - 1}px)`,
+    );
+    const onChange = () => setIsSinglePane(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return isSinglePane;
+}
 
 export function EmailSplitView({
   emails,
@@ -140,6 +157,7 @@ export function EmailSplitView({
   const router = useRouter();
   const queryClient = useQueryClient();
   const focusManager = useFocusManager();
+  const isSinglePane = useIsSinglePane();
   const listFocusRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -170,12 +188,19 @@ export function EmailSplitView({
     [selectedEmailIds],
   );
 
-  // Exit list-only mode when an email is selected
+  // Exit list-only mode when an email is selected on split layouts. On mobile,
+  // a selected URL can still represent the list screen until the user opens it.
   useEffect(() => {
-    if (selectedEmailId) {
+    if (selectedEmailId && !isSinglePane) {
       state$.isListOnly.set(false);
     }
-  }, [selectedEmailId]);
+  }, [isSinglePane, selectedEmailId]);
+
+  useEffect(() => {
+    if (isSinglePane) {
+      state$.isFullscreen.set(false);
+    }
+  }, [isSinglePane, selectedEmailId]);
 
   useEffect(() => {
     const visibleIds = new Set(emails.map((item) => item.id));
@@ -326,12 +351,21 @@ export function EmailSplitView({
       state$.selectedEmailIds.set([]);
       const index = emails.findIndex((item) => item.id === id);
       if (index >= 0) {
+        state$.localSelectedIndex.set(index);
+        if (isSinglePane && onOpenEmailFullscreen) {
+          onOpenEmailFullscreen(id);
+          return;
+        }
         selectIndex(index);
+        return;
+      }
+      if (isSinglePane && onOpenEmailFullscreen) {
+        onOpenEmailFullscreen(id);
         return;
       }
       onSelectEmail(id);
     },
-    [emails, onSelectEmail, selectIndex],
+    [emails, isSinglePane, onOpenEmailFullscreen, onSelectEmail, selectIndex, state$],
   );
 
   const commands = useCommands({
@@ -382,6 +416,12 @@ export function EmailSplitView({
     state$.isFullscreen.set(false);
     requestAnimationFrame(() => focusViewer());
   }, [focusViewer]);
+
+  const handleBackToList = useCallback(() => {
+    state$.isFullscreen.set(false);
+    state$.isListOnly.set(false);
+    requestAnimationFrame(() => focusList());
+  }, [focusList, state$]);
 
   const handleEscape = useCallback(() => {
     if (state$.isFullscreen.get()) {
@@ -531,15 +571,11 @@ export function EmailSplitView({
 
   const isReplying = !!replyTo;
 
-  // Below lg the layout is single-pane: the inbox shows the list, opening a
-  // message swaps to the viewer (with a back button). At lg+ — where there's
-  // room for the sidebar, a 360px list, and a readable viewer — both panes sit
-  // side by side as before.
-  const listVisibility = isFullscreen
-    ? "hidden"
-    : selectedEmailId
-      ? "hidden lg:block"
-      : "block";
+  // Below lg, keep the list visible until an explicit open action enters the
+  // full-screen viewer. At lg+ there is room for the list and preview panes.
+  const listVisibility = isFullscreen ? "hidden" : "block";
+  const viewerVisibility = "hidden lg:flex";
+  const handleViewerBack = isSinglePane ? handleBackToList : onDeselectEmail;
 
   return (
     <div className="flex h-full w-full flex-col lg:flex-row lg:p-2 lg:gap-2">
@@ -587,8 +623,7 @@ export function EmailSplitView({
               ? "email-viewer fixed inset-0 z-50 bg-background"
               : cn(
                   "email-viewer flex-1 min-w-0 h-full min-h-0 lg:rounded-lg lg:border lg:border-border/50 flex-col",
-                  // Single-pane below lg: only show the viewer once a message is open
-                  selectedEmailId ? "flex" : "hidden lg:flex",
+                  viewerVisibility,
                 )
         }
       >
@@ -598,7 +633,7 @@ export function EmailSplitView({
               emails={threadEmails}
               subject={email?.subject ?? null}
               onReply={onComposeReply}
-              onBack={onDeselectEmail}
+              onBack={handleViewerBack}
               selectedEmailId={selectedEmailId ?? email?.id ?? null}
               shouldAutoFocus={!isReplying && pendingViewerFocus && activeSurface === "viewer"}
               onAutoFocusComplete={() => state$.pendingViewerFocus.set(false)}
@@ -609,7 +644,7 @@ export function EmailSplitView({
             <EmailView
               email={email}
               onReply={onComposeReply}
-              onBack={onDeselectEmail}
+              onBack={handleViewerBack}
               onToggleRead={onToggleRead}
               onRemoveFromInbox={onRemoveFromInbox}
               shouldAutoFocus={!isReplying && pendingViewerFocus && activeSurface === "viewer"}
