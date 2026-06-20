@@ -35,6 +35,7 @@ pub fn run() {
             .resource_dir()
             .expect("failed to resolve resource dir");
         let server_ts = resource_dir.join("server.ts");
+        let server_ts_arg = server_ts.to_string_lossy().to_string();
         let dist_server_dir = resource_dir.join("server");
         let dist_client_dir = resource_dir.join("client");
 
@@ -49,7 +50,7 @@ pub fn run() {
             .shell()
             .sidecar("bun")
             .expect("failed to create sidecar command")
-            .args(["run", &server_ts.to_string_lossy()])
+            .args([server_ts_arg])
             .env("PORT", port.to_string())
             .env("EMAIL_DATA_DIR", app_data_dir.to_string_lossy().to_string())
             .env(

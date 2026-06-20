@@ -25,6 +25,7 @@ import {
   removePendingArchiveThreadIds,
 } from "../lib/pending-archive";
 import { isAuthError, notifyAuthError } from "../lib/auth-error";
+import { getNextEmailIdAfterArchive } from "../lib/archive-selection";
 import { useMutation } from "@tanstack/react-query";
 
 type SidebarCounts = {
@@ -391,12 +392,15 @@ function EmailDetailPage() {
         archiveMutation.mutate({ threadId });
       }
 
-      const messageIdSet = new Set(messageIds);
-      const nextEmail = visibleThreads.find((thread) => !messageIdSet.has(thread.id));
-      if (nextEmail) {
+      const nextEmailId = getNextEmailIdAfterArchive(
+        visibleThreads,
+        messageIds,
+        selectedId,
+      );
+      if (nextEmailId) {
         navigate({
           to: "/email/$id",
-          params: { id: nextEmail.id },
+          params: { id: nextEmailId },
           search: {
             q: query,
             threads: threadsOnly || undefined,
@@ -409,7 +413,7 @@ function EmailDetailPage() {
         return;
       }
     },
-    [archiveMutation, category, compose, label, navigate, query, replyTo, threadsOnly, visibleThreads],
+    [archiveMutation, category, compose, label, navigate, query, replyTo, selectedId, threadsOnly, visibleThreads],
   );
 
   const handleRemoveFromInbox = useCallback(

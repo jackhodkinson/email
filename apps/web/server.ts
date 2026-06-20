@@ -144,7 +144,12 @@ Bun.serve({
     }
 
     // Delegate to TanStack Start SSR handler.
-    return appHandler.fetch(req);
+    try {
+      return await appHandler.fetch(req);
+    } catch (error) {
+      console.error("[server] SSR handler failed", error);
+      throw error;
+    }
   },
 });
 

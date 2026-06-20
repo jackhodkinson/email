@@ -37,7 +37,8 @@
     "resources": {
       "../dist/server/*": "server/",
       "../dist/server/assets/*": "server/assets/",
-      "../dist/client/**/*": "client/",
+      "../dist/client/*": "client/",
+      "../dist/client/assets/*": "client/assets/",
       "../server.ts": "server.ts"
     }
   },
