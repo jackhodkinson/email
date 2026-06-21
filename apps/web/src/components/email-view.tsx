@@ -3,7 +3,7 @@ import { EmailContent } from "./email-content";
 import type { InlinePart } from "@/lib/email-render";
 import { EmailAddressChip, parseEmailAddress } from "./email-address-chip";
 import { Button } from "./ui/button";
-import { Archive, ArrowLeft, ChevronDown, Mail, MailOpen, Maximize2, Minimize2, Paperclip, Reply } from "lucide-react";
+import { Archive, ArrowLeft, Check, ChevronDown, Copy, Mail, MailOpen, Maximize2, Minimize2, Paperclip, Reply } from "lucide-react";
 import { AttachmentsRow } from "./attachments-row";
 import { cn } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/date";
@@ -44,6 +44,7 @@ export function EmailView({
   isFullscreen = false,
   onToggleFullscreen,
 }: EmailViewProps) {
+  const [copiedDebugInfo, setCopiedDebugInfo] = useState(false);
   const setRootRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el || !shouldAutoFocus) return;
@@ -59,6 +60,19 @@ export function EmailView({
   const senderInitial = senderName.charAt(0).toUpperCase();
 
   const recipientsSummary = formatRecipients(email.recipients);
+
+  const copyDebugInfo = useCallback(async () => {
+    const text = formatEmailDebugInfo(email.id, email.subject);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedDebugInfo(true);
+      window.setTimeout(() => setCopiedDebugInfo(false), 1500);
+    } catch {
+      // Clipboard can fail outside a secure/user-activated context. Keep this
+      // silent so the debug affordance never interrupts reading mail.
+      setCopiedDebugInfo(false);
+    }
+  }, [email.id, email.subject]);
 
   return (
     <div
@@ -96,6 +110,16 @@ export function EmailView({
             title="Archive (e)"
           >
             <Archive />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={copyDebugInfo}
+            title="Copy message ID and subject"
+            aria-label="Copy message ID and subject"
+          >
+            {copiedDebugInfo ? <Check /> : <Copy />}
           </Button>
           <Button
             type="button"
@@ -209,6 +233,10 @@ export function EmailView({
       </div>
     </div>
   );
+}
+
+function formatEmailDebugInfo(messageId: string, subject: string | null): string {
+  return `Message ID: ${messageId}\nSubject: ${subject || "(no subject)"}`;
 }
 
 function formatRecipients(recipients: string[]): string {

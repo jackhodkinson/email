@@ -1,5 +1,5 @@
-import { memo, useState, type Ref } from "react";
-import { ChevronDown, Paperclip, Reply } from "lucide-react";
+import { memo, useCallback, useState, type Ref } from "react";
+import { Check, ChevronDown, Copy, Paperclip, Reply } from "lucide-react";
 import { AttachmentsRow } from "./attachments-row";
 import { EmailContent } from "./email-content";
 import type { InlinePart } from "@/lib/email-render";
@@ -50,6 +50,18 @@ export const ThreadMessage = memo(function ThreadMessage({
     recipientNames.length <= 2
       ? recipientNames.join(", ")
       : `${recipientNames[0]}, ${recipientNames[1]}, +${recipientNames.length - 2}`;
+  const [copiedDebugInfo, setCopiedDebugInfo] = useState(false);
+
+  const copyDebugInfo = useCallback(async () => {
+    const text = formatEmailDebugInfo(email.id, email.subject);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedDebugInfo(true);
+      window.setTimeout(() => setCopiedDebugInfo(false), 1500);
+    } catch {
+      setCopiedDebugInfo(false);
+    }
+  }, [email.id, email.subject]);
 
   return (
     <div className="thread-msg group" data-message-root>
@@ -109,19 +121,28 @@ export const ThreadMessage = memo(function ThreadMessage({
             )}
           </div>
 
-          {/* Reply — inline in the header row */}
+          {/* Expanded message actions — inline in the header row */}
           {isExpanded && (
-            <div
-              className="thread-msg__reply-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReply?.(email.id);
-              }}
-              role="button"
-              tabIndex={-1}
-              title="Reply (r)"
-            >
-              <Reply className="h-4 w-4" />
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <span
+                className="thread-msg__reply-btn"
+                onClick={copyDebugInfo}
+                role="button"
+                tabIndex={-1}
+                title="Copy message ID and subject"
+                aria-label="Copy message ID and subject"
+              >
+                {copiedDebugInfo ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </span>
+              <span
+                className="thread-msg__reply-btn"
+                onClick={() => onReply?.(email.id)}
+                role="button"
+                tabIndex={-1}
+                title="Reply (r)"
+              >
+                <Reply className="h-4 w-4" />
+              </span>
             </div>
           )}
         </div>
@@ -172,6 +193,10 @@ export const ThreadMessage = memo(function ThreadMessage({
     </div>
   );
 });
+
+function formatEmailDebugInfo(messageId: string, subject: string | null): string {
+  return `Message ID: ${messageId}\nSubject: ${subject || "(no subject)"}`;
+}
 
 function formatFullDate(timestamp: number): string {
   const date = new Date(timestamp * 1000);
