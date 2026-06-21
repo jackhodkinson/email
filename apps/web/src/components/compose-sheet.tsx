@@ -7,11 +7,11 @@ import { Button } from "./ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+import { ArrowUp, X } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { useFocusManager } from "@/lib/focus-manager";
 
@@ -152,8 +152,34 @@ export function ComposeSheet({
           <DialogDescription>Compose an email</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSend} onKeyDown={handleKeyDown} className="flex flex-1 min-h-0 flex-col">
-          <div className="flex flex-1 min-h-0 flex-col overflow-auto">
+        <form onSubmit={handleSend} onKeyDown={handleKeyDown} className="compose-form">
+          <div className="compose-mobile-toolbar" aria-label="Compose actions">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              className="compose-mobile-toolbar__button"
+              disabled={isSending}
+              onClick={() => onOpenChange(false)}
+              aria-label="Discard draft"
+              title="Discard"
+            >
+              <X />
+            </Button>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon-lg"
+              className="compose-mobile-toolbar__button"
+              disabled={!canSend}
+              aria-label={isSending ? "Sending" : "Send message"}
+              title="Send"
+            >
+              <ArrowUp />
+            </Button>
+          </div>
+
+          <div className="compose-scroll">
             {/* To field */}
             <label className="compose-field">
               <span className="compose-field__label">To</span>
@@ -230,7 +256,7 @@ export function ComposeSheet({
             )}
           </div>
 
-          <DialogFooter className="border-t border-border px-4 py-3 flex-row items-center justify-between sm:justify-between">
+          <div className="compose-footer">
             <span className="text-xs text-muted-foreground">
               {navigator.platform?.includes("Mac") ? "\u2318" : "Ctrl"}+Enter to send
             </span>
@@ -248,7 +274,7 @@ export function ComposeSheet({
                 {isSending ? "Sending..." : "Send"}
               </Button>
             </div>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
