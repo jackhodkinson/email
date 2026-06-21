@@ -10,6 +10,7 @@ import {
 } from "../lib/reply-cache";
 import { Button } from "./ui/button";
 import { useRouter } from "@tanstack/react-router";
+import { ArrowUp, X } from "lucide-react";
 
 interface ReplyPanelProps {
   replyToMessageId: string;
@@ -141,9 +142,8 @@ export function ReplyPanel({
 
   return (
     <div className="reply-panel">
-      <form onSubmit={handleSend} onKeyDown={handleKeyDown} className="flex flex-col">
-        {/* Compact header with To + subject summary */}
-        <div className="reply-panel__header">
+      <form onSubmit={handleSend} onKeyDown={handleKeyDown} className="reply-panel__form">
+        <div className="reply-panel__desktop-header">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-xs text-muted-foreground flex-shrink-0">Reply to</span>
             <span className="text-xs font-medium truncate">{to}</span>
@@ -166,41 +166,90 @@ export function ReplyPanel({
           </button>
         </div>
 
-        {showCcBcc && (
-          <>
-            <label className="compose-field">
-              <span className="compose-field__label">Cc</span>
-              <input
-                value={cc}
-                onChange={(event) => setCc(event.target.value)}
-                className="compose-field__input"
-              />
-            </label>
-            <label className="compose-field">
-              <span className="compose-field__label">Bcc</span>
-              <input
-                value={bcc}
-                onChange={(event) => setBcc(event.target.value)}
-                className="compose-field__input"
-              />
-            </label>
-          </>
-        )}
+        <div className="reply-panel__mobile-toolbar" aria-label="Reply actions">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className="compose-mobile-toolbar__button"
+            disabled={isSending}
+            onClick={onClose}
+            aria-label="Discard reply"
+            title="Discard"
+          >
+            <X />
+          </Button>
+          <Button
+            type="submit"
+            variant="ghost"
+            size="icon-lg"
+            className="compose-mobile-toolbar__button"
+            disabled={!canSend}
+            aria-label={isSending ? "Sending" : "Send reply"}
+            title="Send"
+          >
+            <ArrowUp />
+          </Button>
+        </div>
 
-        <textarea
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          placeholder="Write your reply..."
-          autoFocus
-          className="reply-panel__body"
-          rows={4}
-        />
+        <div className="reply-panel__scroll">
+          <h2 className="reply-panel__subject">{subject}</h2>
 
-        {error && (
-          <p className="text-sm text-destructive px-4 py-1" role="alert">
-            {error}
-          </p>
-        )}
+          <label className="compose-field reply-panel__to-field">
+            <span className="compose-field__label">To</span>
+            <input value={to} readOnly className="compose-field__input" />
+            {!showCcBcc && (
+              <button
+                type="button"
+                onClick={() => setShowCcBcc(true)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2"
+              >
+                Cc Bcc
+              </button>
+            )}
+          </label>
+
+          {showCcBcc && (
+            <>
+              <label className="compose-field">
+                <span className="compose-field__label">Cc</span>
+                <input
+                  value={cc}
+                  onChange={(event) => setCc(event.target.value)}
+                  className="compose-field__input"
+                />
+              </label>
+              <label className="compose-field">
+                <span className="compose-field__label">Bcc</span>
+                <input
+                  value={bcc}
+                  onChange={(event) => setBcc(event.target.value)}
+                  className="compose-field__input"
+                />
+              </label>
+            </>
+          )}
+
+          <label className="compose-field reply-panel__subject-field">
+            <span className="compose-field__label">Subject</span>
+            <input value={subject} readOnly className="compose-field__input" />
+          </label>
+
+          <textarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder="Write your reply..."
+            autoFocus
+            className="reply-panel__body"
+            rows={4}
+          />
+
+          {error && (
+            <p className="text-sm text-destructive px-4 py-1" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
 
         <div className="reply-panel__footer">
           <span className="text-xs text-muted-foreground">

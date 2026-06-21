@@ -666,7 +666,7 @@ export function EmailSplitView({
 
         {/* Inline reply — renders at bottom of viewer */}
         {replyTo && onCloseReply && (
-          <div className="border-t border-border/50">
+          <div className="reply-panel-container">
             <ReplyPanel
               key={replyTo.messageId}
               replyToMessageId={replyTo.messageId}
