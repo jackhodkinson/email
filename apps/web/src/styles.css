@@ -640,6 +640,11 @@ code {
          emails (often designed for 600px+) have the most width to work with. */
       padding: 0.75rem 0;
     }
+    .email-iframe-wrapper--plain-text {
+      /* Plain text has no authored layout, so keep a readable inset even when
+         HTML emails are allowed to use the full mobile viewport. */
+      padding-inline: 0.75rem;
+    }
     .panel-header {
       padding: 0.75rem;
     }

@@ -141,6 +141,7 @@ function PlainTextEmail({ text }: { text: string }) {
         html={rendered.mainHtml}
         styles={rendered.styles}
         hasOwnBackground={false}
+        isPlainText
       />
       {rendered.quotedHtml && (
         <div className="mt-3">
@@ -169,6 +170,7 @@ function PlainTextEmail({ text }: { text: string }) {
                 html={rendered.quotedHtml}
                 styles=""
                 hasOwnBackground={false}
+                isPlainText
               />
             </div>
           )}
@@ -202,10 +204,12 @@ function EmailIframe({
   html,
   styles,
   hasOwnBackground,
+  isPlainText = false,
 }: {
   html: string;
   styles: string;
   hasOwnBackground: boolean;
+  isPlainText?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -218,8 +222,8 @@ function EmailIframe({
   const useDark = !hasOwnBackground && effectiveTheme === "dark";
 
   const srcdoc = useMemo(
-    () => buildSrcdoc(html, styles, useDark, hasOwnBackground),
-    [html, styles, useDark, hasOwnBackground],
+    () => buildSrcdoc(html, styles, useDark, hasOwnBackground, isPlainText),
+    [html, styles, useDark, hasOwnBackground, isPlainText],
   );
 
   const measure = useCallback(() => {
@@ -304,6 +308,7 @@ function EmailIframe({
       className={cn(
         "email-iframe-wrapper",
         hasOwnBackground && "email-iframe-wrapper--own-bg",
+        isPlainText && "email-iframe-wrapper--plain-text",
       )}
       style={{
         height: height > 0 ? `${height}px` : "150px",
@@ -336,6 +341,7 @@ function buildSrcdoc(
   styles: string,
   isDark: boolean,
   hasOwnBackground: boolean,
+  isPlainText: boolean,
 ): string {
   const textColor = isDark ? "#e4e4e7" : "#1f2328";
   const linkColor = isDark ? "#60a5fa" : "#2563eb";
@@ -383,7 +389,14 @@ blockquote {
   border-left: 3px solid ${isDark ? "#3f3f46" : "#e2e8f0"};
   color: ${isDark ? "#a1a1aa" : "#475569"};
 }
-</style>`;
+${isPlainText ? `
+p {
+  margin: 0 0 0.875em;
+}
+p:last-child {
+  margin-bottom: 0;
+}
+` : ""}</style>`;
 
   return [
     "<!DOCTYPE html>",
