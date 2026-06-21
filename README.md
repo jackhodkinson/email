@@ -131,13 +131,25 @@ bun run tauri:dev
 
 Requires the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (Rust toolchain, platform-specific deps).
 
+## Swift app
+
+There is also an early native SwiftUI shell with a sample inbox list:
+
+```bash
+cd apps/swift
+./scripts/run-app.sh
+```
+
+This is currently a Hello World version of the email list view and uses local sample data.
+
 ## Project structure
 
 ```
 email/
 ├── apps/
 │   ├── cli/           # cmail — CLI client
-│   └── web/           # TanStack Start web + Tauri desktop client
+│   ├── web/           # TanStack Start web + Tauri desktop client
+│   └── swift/         # Native SwiftUI app shell
 ├── packages/
 │   └── core/          # Shared library (auth, Gmail API, SQLite, sync, query)
 └── package.json       # Bun workspace root
