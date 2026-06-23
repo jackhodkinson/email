@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailIdRouteImport } from './routes/email.$id'
@@ -17,6 +19,16 @@ import { Route as ApiAuthStartRouteImport } from './routes/api.auth.start'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api.auth.callback'
 import { Route as ApiInlineEmailIdAttachmentIdRouteImport } from './routes/api.inline.$emailId.$attachmentId'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactsRoute = ContactsRouteImport.update({
   id: '/contacts',
   path: '/contacts',
@@ -57,6 +69,8 @@ const ApiInlineEmailIdAttachmentIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
+  '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -66,6 +80,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
+  '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -76,6 +92,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRoute
+  '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/email/$id': typeof EmailIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -87,6 +105,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/contacts'
+    | '/search'
+    | '/settings'
     | '/api/realtime'
     | '/email/$id'
     | '/api/auth/callback'
@@ -96,6 +116,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/contacts'
+    | '/search'
+    | '/settings'
     | '/api/realtime'
     | '/email/$id'
     | '/api/auth/callback'
@@ -105,6 +127,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/contacts'
+    | '/search'
+    | '/settings'
     | '/api/realtime'
     | '/email/$id'
     | '/api/auth/callback'
@@ -115,6 +139,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContactsRoute: typeof ContactsRoute
+  SearchRoute: typeof SearchRoute
+  SettingsRoute: typeof SettingsRoute
   ApiRealtimeRoute: typeof ApiRealtimeRoute
   EmailIdRoute: typeof EmailIdRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
@@ -124,6 +150,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contacts': {
       id: '/contacts'
       path: '/contacts'
@@ -179,6 +219,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContactsRoute: ContactsRoute,
+  SearchRoute: SearchRoute,
+  SettingsRoute: SettingsRoute,
   ApiRealtimeRoute: ApiRealtimeRoute,
   EmailIdRoute: EmailIdRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,

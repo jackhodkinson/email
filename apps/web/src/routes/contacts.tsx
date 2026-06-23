@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { SidebarTrigger } from "../components/ui/sidebar";
 import { getContactsList } from "../server/functions";
 
 type SortField =
@@ -58,6 +59,7 @@ function ContactsPage() {
     <div className="h-full flex flex-col overflow-hidden">
       <div className="page-header flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <SidebarTrigger className="-ml-1" />
           <h1 className="page-header__title">Contacts</h1>
           <span className="page-header__count">{contacts.length}</span>
         </div>

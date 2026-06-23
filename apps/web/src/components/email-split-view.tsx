@@ -573,6 +573,7 @@ export function EmailSplitView({
 
   // Below lg, keep the list visible until an explicit open action enters the
   // full-screen viewer. At lg+ there is room for the list and preview panes.
+  const isListExpanded = isListOnly || !selectedEmailId;
   const listVisibility = isFullscreen ? "hidden" : "block";
   const viewerVisibility = "hidden lg:flex";
   const handleViewerBack = isSinglePane ? handleBackToList : onDeselectEmail;
@@ -585,7 +586,7 @@ export function EmailSplitView({
         onPointerDownCapture={handleListPointerDown}
         className={cn(
           "h-full min-h-0 outline-none",
-          isListOnly ? "w-full" : "lg:w-[360px] lg:flex-shrink-0",
+          isListExpanded ? "w-full" : "lg:w-[360px] lg:flex-shrink-0",
           listVisibility,
         )}
       >
@@ -594,7 +595,6 @@ export function EmailSplitView({
             accountId={accountId}
             threadsOnly={threadsOnly}
             onToggleThreadsOnly={onToggleThreadsOnly}
-            onComposeNew={onComposeNew}
           />
           <EmailList
             emails={emails}
@@ -617,7 +617,7 @@ export function EmailSplitView({
         aria-label="Email viewer"
         onPointerDownCapture={handleViewerPointerDown}
         className={
-          isListOnly
+          isListExpanded
             ? "hidden"
             : isFullscreen
               ? "email-viewer fixed inset-0 z-50 bg-background"

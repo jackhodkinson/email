@@ -12,7 +12,6 @@ import { ComposeSheet } from "../components/compose-sheet";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
 import { AuthRequiredBanner } from "../components/auth-required-banner";
-import { useSearchBox } from "../lib/search-context";
 import {
   getQueryClient,
   prefetchBatch,
@@ -136,7 +135,6 @@ function InboxPage() {
     Route.useLoaderData();
   const navigate = useNavigate();
   const router = useRouter();
-  const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
   const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(
     () => new Set(getPendingArchiveThreadIds()),
@@ -466,8 +464,11 @@ function InboxPage() {
   const composeOpen = compose === "new";
 
   const focusSearch = useCallback(() => {
-    searchBoxRef.current?.focus();
-  }, [searchBoxRef]);
+    navigate({
+      to: "/search",
+      search: { q: query },
+    });
+  }, [navigate, query]);
 
   if (!accountId) {
     return <NoAccount />;

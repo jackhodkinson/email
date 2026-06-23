@@ -5,15 +5,12 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HotkeysProvider } from '@tanstack/react-hotkeys'
 import { hotkeysDevtoolsPlugin } from '@tanstack/react-hotkeys-devtools'
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
-import { Command } from 'lucide-react'
 
 import { AppSidebar } from '../components/app-sidebar'
-import { SearchBox, type SearchBoxHandle } from '../components/search-box'
 import { ViewCommandPalette } from '../components/view-command-palette'
-import { Button } from '../components/ui/button'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '../components/ui/sidebar'
 import { FocusManagerProvider } from '../lib/focus-manager'
-import { SearchBoxContext } from '../lib/search-context'
+import { SearchBoxContext, type SearchBoxHandle } from '../lib/search-context'
 import { getQueryClient } from '../lib/query'
 import { ThemeProvider, THEME_INIT_SCRIPT } from '../lib/theme'
 
@@ -68,48 +65,12 @@ function NotFound() {
   )
 }
 
-function RootHeader({
-  searchBoxRef,
-  onOpenPalette,
-}: {
-  searchBoxRef: React.RefObject<SearchBoxHandle | null>
-  onOpenPalette: () => void
-}) {
-  const matches = useMatches();
-  const search = matches[matches.length - 1]?.search as
-    | { q?: string; threads?: boolean; category?: string; label?: string }
-    | undefined;
-
-  return (
-    <header className="hidden lg:flex h-10 shrink-0 items-center gap-2 border-b px-3">
-      <SidebarTrigger className="-ml-1" />
-      <SearchBox
-        ref={searchBoxRef}
-        query={search?.q}
-        threadsOnly={!!search?.threads}
-        category={search?.category}
-        label={search?.label}
-      />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="ml-auto shrink-0"
-        onClick={onOpenPalette}
-        aria-label="Open views"
-      >
-        <Command className="size-4" />
-        <span className="hidden sm:inline">Views</span>
-        <span className="hidden md:inline text-muted-foreground text-xs">⌘K</span>
-      </Button>
-    </header>
-  );
-}
-
 function RootDocument({ children }: { children: React.ReactNode }) {
   const searchBoxRef = useRef<SearchBoxHandle>(null);
   const queryClient = getQueryClient();
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const matches = useMatches();
+  const isSettingsRoute = matches.some((match) => match.routeId === "/settings");
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -124,22 +85,24 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <RealtimeInvalidationBridge />
           <ThemeProvider>
           <SearchBoxContext.Provider value={searchBoxRef}>
-          <SidebarProvider className="h-full min-h-0">
-            <AppSidebar />
-            <SidebarInset className="flex flex-col overflow-hidden">
-              <RootHeader
-                searchBoxRef={searchBoxRef}
-                onOpenPalette={() => setIsPaletteOpen(true)}
+          {isSettingsRoute ? (
+            <div className="h-full min-h-0 overflow-hidden">
+              {children}
+            </div>
+          ) : (
+            <SidebarProvider className="h-full min-h-0">
+              <AppSidebar />
+              <SidebarInset className="flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {children}
+                </div>
+              </SidebarInset>
+              <ViewCommandPalette
+                open={isPaletteOpen}
+                onOpenChange={setIsPaletteOpen}
               />
-              <div className="flex-1 min-h-0 overflow-hidden">
-                {children}
-              </div>
-            </SidebarInset>
-            <ViewCommandPalette
-              open={isPaletteOpen}
-              onOpenChange={setIsPaletteOpen}
-            />
-          </SidebarProvider>
+            </SidebarProvider>
+          )}
           </SearchBoxContext.Provider>
           </ThemeProvider>
           </QueryClientProvider>

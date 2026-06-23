@@ -10,7 +10,6 @@ import { ComposeSheet } from "../components/compose-sheet";
 import { EmailSplitView } from "../components/email-split-view";
 import { NoAccount } from "../components/no-account";
 import { AuthRequiredBanner } from "../components/auth-required-banner";
-import { useSearchBox } from "../lib/search-context";
 import {
   inboxQueryOptions,
   emailDetailQueryOptions,
@@ -125,7 +124,6 @@ function EmailDetailPage() {
         : null;
     },
   });
-  const searchBoxRef = useSearchBox();
   const queryClient = useQueryClient();
 
   // Inbox list lives in React Query so it survives route transitions.
@@ -642,8 +640,11 @@ function EmailDetailPage() {
       : null;
 
   const focusSearch = useCallback(() => {
-    searchBoxRef.current?.focus();
-  }, [searchBoxRef]);
+    navigate({
+      to: "/search",
+      search: { q: query },
+    });
+  }, [navigate, query]);
 
   if (!accountId) {
     return <NoAccount />;

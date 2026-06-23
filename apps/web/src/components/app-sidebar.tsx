@@ -1,13 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useMatches, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, PencilLine, Plus, Tag } from "lucide-react";
+import { Mail, PencilLine, Plus, Search, Settings, SquarePen, Tag } from "lucide-react";
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -22,14 +17,10 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { LabelDialog } from "@/components/label-dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
   createLabelAction,
   deleteLabelAction,
@@ -39,7 +30,6 @@ import {
   getActiveMailViewId,
   inboxCategoryViews,
   inboxView,
-  isInboxCategoryView,
   secondaryMailViews,
 } from "@/lib/mail-views";
 import { sidebarCountsQueryOptions, userLabelsQueryOptions } from "@/lib/query";
@@ -69,6 +59,12 @@ export function AppSidebar() {
   const activeLabelId = search?.label;
   const isContactsRoute = matches.some(
     (m) => m.routeId === "/contacts",
+  );
+  const isSettingsRoute = matches.some(
+    (m) => m.routeId === "/settings",
+  );
+  const isSearchRoute = matches.some(
+    (m) => m.routeId === "/search",
   );
   const activeViewId = getActiveMailViewId({
     category: activeCategory,
@@ -178,75 +174,58 @@ export function AppSidebar() {
   }, [queryClient]);
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader>
-        <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link to={inboxView.route.to} search={inboxView.route.search}>
-                  <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                    <inboxView.icon className="size-4" />
-                  </div>
-                  <span className="font-semibold">Mail</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+        <div className="flex h-10 items-center gap-1 px-2">
+          <Link
+            to="/"
+            search={inboxView.route.search}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-semibold transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Mail className="size-4 shrink-0" />
+            <span className="truncate">Mail</span>
+          </Link>
+          <Link
+            to="/search"
+            search={{ q: undefined }}
+            className={[
+              "inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none",
+              isSearchRoute ? "bg-sidebar-accent text-sidebar-accent-foreground" : "",
+            ].join(" ")}
+            aria-label="Search"
+            title="Search"
+          >
+            <Search className="size-4" />
+          </Link>
+          <button
+            type="button"
+            className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
+            aria-label="Compose"
+            title="Compose"
+            onClick={() => {
+              navigate({
+                to: "/",
+                search: {
+                  q: undefined,
+                  threads: undefined,
+                  category: undefined,
+                  label: undefined,
+                  compose: "new",
+                  replyTo: undefined,
+                },
+              });
+            }}
+          >
+            <SquarePen className="size-4" />
+          </button>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Mail</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <Collapsible defaultOpen className="group/collapsible">
-                <SidebarMenuItem>
-                  <div className="flex items-center">
-                    <CollapsibleTrigger className="flex items-center justify-center size-6 shrink-0 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-                      <ChevronRight className="size-3.5 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                    </CollapsibleTrigger>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={activeViewId === inboxView.id || isInboxCategoryView(activeCategory) || activeViewId?.startsWith("inbox-label:")}
-                      tooltip={inboxView.title}
-                      className="flex-1"
-                    >
-                      <Link to={inboxView.route.to} search={inboxView.route.search}>
-                        <inboxView.icon />
-                        <span className="flex-1">{inboxView.title}</span>
-                        {counts && counts.inbox > 0 && (
-                          <span className="text-xs tabular-nums text-sidebar-foreground/70">
-                            {counts.inbox}
-                          </span>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </div>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {inboxCategoryViews.map((view) => (
-                        <SidebarMenuSubItem key={view.id}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={activeViewId === view.id}
-                          >
-                            <Link to={view.route.to} search={view.route.search}>
-                              <view.icon />
-                              <span className="flex-1">{view.title}</span>
-                              {counts && view.countKey && counts[view.countKey] > 0 && (
-                                  <span className="text-xs tabular-nums text-sidebar-foreground/70">
-                                    {counts[view.countKey]}
-                                  </span>
-                                )}
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-
-              {secondaryMailViews.map((view) => (
+              {[inboxView, ...inboxCategoryViews, ...secondaryMailViews].map((view) => (
                 <SidebarMenuItem key={view.id}>
                   <SidebarMenuButton
                     asChild
@@ -383,7 +362,16 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <ThemeToggle />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isSettingsRoute} tooltip="Settings">
+              <Link to="/settings">
+                <Settings />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
       <LabelDialog
