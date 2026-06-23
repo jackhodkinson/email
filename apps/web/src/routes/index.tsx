@@ -404,14 +404,6 @@ function InboxPage() {
     }
   }, [applyOptimisticSidebarDelta, unarchiveMutation]);
 
-  const handleToggleThreadsOnly = useCallback(() => {
-    const nextThreads = !threadsOnly || undefined;
-    navigate({
-      to: "/",
-      search: { q: query, threads: nextThreads, category, label, compose, replyTo },
-    });
-  }, [category, compose, label, navigate, query, replyTo, threadsOnly]);
-
   const handleComposeNew = useCallback(() => {
     navigate({
       to: "/",
@@ -492,9 +484,6 @@ function InboxPage() {
             compose,
             replyTo,
           }}
-          accountId={accountId}
-          threadsOnly={threadsOnly}
-          onToggleThreadsOnly={handleToggleThreadsOnly}
           onComposeNew={handleComposeNew}
           onComposeReply={handleComposeReply}
           onRemoveFromInbox={handleRemoveFromInbox}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useMatches, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useMatches, useNavigate, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, PencilLine, Plus, Search, Settings, SquarePen, Tag } from "lucide-react";
+import { Mail, PencilLine, Plus, RefreshCw, Search, Settings, SquarePen, Tag } from "lucide-react";
 
 import {
   Sidebar,
@@ -24,8 +24,10 @@ import { LabelDialog } from "@/components/label-dialog";
 import {
   createLabelAction,
   deleteLabelAction,
+  syncAccount,
   updateLabelAction,
 } from "@/server/functions";
+import { isAuthError, notifyAuthError } from "@/lib/auth-error";
 import {
   getActiveMailViewId,
   inboxCategoryViews,
@@ -42,6 +44,7 @@ type SidebarLabel = {
 
 export function AppSidebar() {
   const navigate = useNavigate();
+  const router = useRouter();
   const matches = useMatches();
   const queryClient = useQueryClient();
   const { setOpenMobile } = useSidebar();
@@ -79,6 +82,7 @@ export function AppSidebar() {
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<SidebarLabel | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const resetDialog = () => {
     setDialogMode(null);
@@ -156,6 +160,26 @@ export function AppSidebar() {
     || updateLabelMutation.isPending
     || deleteLabelMutation.isPending;
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await syncAccount({ data: { accountId: "default" } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["email", "inbox"] }),
+        queryClient.invalidateQueries({ queryKey: sidebarCountsQueryOptions().queryKey }),
+        queryClient.invalidateQueries({ queryKey: userLabelsQueryOptions().queryKey }),
+      ]);
+      await router.invalidate();
+    } catch (error) {
+      if (isAuthError(error)) {
+        notifyAuthError();
+      }
+      console.error("Failed to refresh mail", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: sidebarCountsQueryOptions().queryKey });
@@ -185,6 +209,16 @@ export function AppSidebar() {
             <Mail className="size-4 shrink-0" />
             <span className="truncate">Mail</span>
           </Link>
+          <button
+            type="button"
+            className="inline-flex size-8 items-center justify-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+            aria-label="Refresh mail"
+            title="Refresh mail"
+            disabled={isRefreshing}
+            onClick={handleRefresh}
+          >
+            <RefreshCw className={isRefreshing ? "size-4 animate-spin" : "size-4"} />
+          </button>
           <Link
             to="/search"
             search={{ q: undefined }}

@@ -66,9 +66,6 @@ interface EmailSplitViewProps {
   onHoverEmail?: (id: string) => void;
   focusSearch?: () => void;
   searchParams?: Record<string, unknown>;
-  accountId: string;
-  threadsOnly: boolean;
-  onToggleThreadsOnly: () => void;
   onComposeNew: () => void;
   onComposeReply: (messageId: string) => void;
   onToggleRead?: (messageId: string, isRead: boolean) => void;
@@ -138,9 +135,6 @@ export function EmailSplitView({
   onHoverEmail,
   focusSearch = noop,
   searchParams,
-  accountId,
-  threadsOnly,
-  onToggleThreadsOnly,
   onComposeNew,
   onComposeReply,
   onToggleRead,
@@ -591,11 +585,7 @@ export function EmailSplitView({
         )}
       >
         <div className="h-full min-h-0 w-full overflow-hidden flex flex-col bg-card lg:rounded-lg lg:border lg:border-border/50">
-          <EmailListToolbar
-            accountId={accountId}
-            threadsOnly={threadsOnly}
-            onToggleThreadsOnly={onToggleThreadsOnly}
-          />
+          <EmailListToolbar />
           <EmailList
             emails={emails}
             selectedIndex={resolvedSelectedIndex}

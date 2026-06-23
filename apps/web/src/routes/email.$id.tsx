@@ -570,15 +570,6 @@ function EmailDetailPage() {
     });
   }, [category, label, navigate, query, threadsOnly]);
 
-  const handleToggleThreadsOnly = useCallback(() => {
-    const nextThreads = !threadsOnly || undefined;
-    navigate({
-      to: "/email/$id",
-      params: { id: selectedId },
-      search: { q: query, threads: nextThreads, category, label, compose, replyTo },
-    });
-  }, [category, compose, label, navigate, query, replyTo, selectedId, threadsOnly]);
-
   const handleComposeNew = useCallback(() => {
     navigate({
       to: "/email/$id",
@@ -672,9 +663,6 @@ function EmailDetailPage() {
             compose,
             replyTo,
           }}
-          accountId={accountId}
-          threadsOnly={threadsOnly}
-          onToggleThreadsOnly={handleToggleThreadsOnly}
           onComposeNew={handleComposeNew}
           onComposeReply={handleComposeReply}
           onToggleRead={handleToggleRead}
